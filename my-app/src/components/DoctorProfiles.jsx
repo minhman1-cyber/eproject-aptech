@@ -345,10 +345,10 @@ const handleNewQualificationChange = (e) => {
 
     return (
         <div className="container py-5">
-            <h2 className="mb-4 text-success d-flex align-items-center">
+            {/* <h2 className="mb-4 text-success d-flex align-items-center">
                 <i className="bi bi-person-badge-fill me-3"></i> Quản lý Profile Bác Sĩ
                 {formData.doctorId && <span className="badge bg-secondary ms-3">ID Doctor: {formData.doctorId}</span>}
-            </h2>
+            </h2> */}
             
             {/* Hiển thị thông báo lỗi/thành công */}
             {error && <div className="alert alert-danger" role="alert">{error}</div>}

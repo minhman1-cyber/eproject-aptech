@@ -146,7 +146,6 @@ const DoctorAppointmentList = () => {
     // ------------------- RENDER -------------------
     return (
         <div className="container py-5">
-            <h2 className="mb-4 text-success">🩺 Lịch Hẹn Khám Bệnh (Doctor Panel)</h2>
 
             {error && <div className="alert alert-danger" role="alert">{error}</div>}
             {successMessage && <div className="alert alert-success" role="alert">{successMessage}</div>}
