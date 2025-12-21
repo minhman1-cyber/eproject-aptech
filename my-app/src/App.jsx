@@ -113,9 +113,7 @@ function App() {
           <Route path='/changePass' element={< ChangePasswordModal />} />
           <Route path='/aboutus' element={< AboutUs />} />
           <Route path='/doctor/dashboard' element={< DoctorDashboard />} />
-          <Route path='/doctor/dashboard2' element={< DoctorDash />} />
           <Route path='/admin/dashboard' element={< AdminDashboard />} />
-          <Route path='/admin/dashboard2' element={< AdminDash />} />
           <Route path='/patient/dashboard' element={< PatientDashboard />} />
         </Routes>
       </div>
