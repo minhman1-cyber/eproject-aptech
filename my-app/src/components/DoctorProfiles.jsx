@@ -266,6 +266,40 @@ const DoctorProfiles = () => {
         }
     }, [selectedSpecializationIds, fetchApi]);
 
+    // === HÀM MỚI: XỬ LÝ XÓA BẰNG CẤP ===
+    const handleDeleteQualification = useCallback(async (qualificationId) => {
+        if (!window.confirm("Bạn có chắc chắn muốn xóa bằng cấp này không? Hành động này không thể hoàn tác.")) {
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+        setSuccessMessage(null);
+
+        try {
+            // Sử dụng updateType 'delete_qualification' mà chúng ta đã định nghĩa ở PHP
+            const payload = {
+                updateType: 'delete_qualification',
+                qualificationId: qualificationId
+            };
+
+            const data = await fetchApi(API_PROFILE_URL, {
+                method: 'PUT', // Dùng method PUT hoặc POST để gửi JSON body
+                body: JSON.stringify(payload),
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            // Xóa thành công, cập nhật UI bằng cách lọc bỏ item đó ra khỏi state
+            setQualifications(prev => prev.filter(q => q.id !== qualificationId));
+            setSuccessMessage(data.message || "Đã xóa bằng cấp thành công!");
+
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [fetchApi]);
+
 
     // Tab 3: Thêm bằng cấp
     const handleAddQualification = useCallback(async (e) => {
@@ -534,8 +568,12 @@ const handleNewQualificationChange = (e) => {
                                                         <a href={q.document_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-info me-2">
                                                             <i className="bi bi-file-earmark-text-fill me-1"></i> Xem File
                                                         </a>
-                                                        <button className="btn btn-sm btn-outline-danger">
-                                                            <i className="bi bi-trash-fill">Xóa</i>
+                                                        <button 
+                                                            className="btn btn-sm btn-outline-danger"
+                                                            onClick={() => handleDeleteQualification(q.id)}
+                                                            disabled={isLoading}
+                                                        >
+                                                            <i className="bi bi-trash-fill"> Xóa</i>
                                                         </button>
                                                     </td>
                                                 </tr>

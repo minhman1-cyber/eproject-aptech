@@ -3,7 +3,9 @@
 ob_start(); 
 session_start();
 
+// ==============================
 // HÀM DEBUG & BẮT LỖI JSON
+// ==============================
 function debug_exit($e = null) {
     $buffer = ob_get_contents();
     if (ob_get_level() > 0) { ob_end_clean(); }
@@ -53,6 +55,7 @@ try {
     require_once '../models/Appointment.php'; 
     require_once '../models/Doctor.php'; 
     require_once '../models/Patient.php'; 
+    require_once '../models/DoctorAvailability.php'; // Load thêm Model Availability
     
     $database = new Database();
     $db = $database->getConnection();
@@ -60,7 +63,8 @@ try {
 
     $appointmentModel = new Appointment($db);
     $doctorModel = new Doctor($db);
-    $patientModel = new Patient($db); // Khởi tạo Patient Model
+    $patientModel = new Patient($db);
+    $availabilityModel = new DoctorAvailability($db); // Khởi tạo
 
 } catch (Exception $e) {
     debug_exit($e);
@@ -93,7 +97,6 @@ $doctorId = $doctorRow['doctor_id'];
 // ===================================
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
-        // Hàm này cần được thêm vào Model Appointment
         $stmt = $appointmentModel->getAppointmentsByDoctorId($doctorId); 
         $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -102,7 +105,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         
         if (!empty($patientIds)) {
             // Lấy tên bệnh nhân từ bảng patients/users
-            // Hàm này cần được thêm vào Model Patient
             $patientsDetails = $patientModel->getPatientDetailsByIds($patientIds); 
         }
 
@@ -153,7 +155,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         $db->beginTransaction();
 
         // 1. Kiểm tra quyền sở hữu (Đảm bảo lịch hẹn thuộc về bác sĩ này)
-        // Sử dụng hàm đã có trong Model Appointment
         $appointmentDetails = $appointmentModel->getAppointmentDetails($appointmentId); 
         if (!$appointmentDetails || (int)$appointmentDetails['doctor_id'] !== (int)$doctorId) {
              http_response_code(403);
@@ -166,9 +167,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         if ($actionType === 'CANCEL') {
             $newStatus = 'CANCELLED';
             if ($appointmentDetails['status'] === 'COMPLETED' || $appointmentDetails['status'] === 'CANCELLED') {
-                 throw new Exception("Lịch hẹn không thể hủy.");
+                 throw new Exception("Lịch hẹn không thể hủy (đã hoàn thành hoặc đã hủy).");
             }
-            $message = "Đã hủy lịch hẹn thành công.";
+            
+            // === LOGIC MỚI: TRẢ LẠI SLOT (IS_BOOKED = 0) ===
+            // Tìm slot tương ứng trong bảng doctor_availability
+            $slotQuery = "SELECT id FROM doctor_availability 
+                          WHERE doctor_id = :doctor_id 
+                          AND date = :date 
+                          AND start_time = :time 
+                          LIMIT 1";
+            $slotStmt = $db->prepare($slotQuery);
+            $slotStmt->bindParam(':doctor_id', $doctorId);
+            $slotStmt->bindParam(':date', $appointmentDetails['appointment_date']);
+            $slotStmt->bindParam(':time', $appointmentDetails['appointment_time']);
+            $slotStmt->execute();
+            
+            if ($slotId = $slotStmt->fetchColumn()) {
+                // Cập nhật trạng thái slot về 0 (Available)
+                $availabilityModel->updateBookingStatus($slotId, 0);
+            }
+            // ==============================================
+
+            $message = "Đã hủy lịch hẹn và mở lại slot khám.";
             
         } elseif ($actionType === 'COMPLETE') {
             $newStatus = 'COMPLETED';
@@ -182,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
             throw new Exception("Hành động không xác định.");
         }
 
-        // Cập nhật trạng thái
+        // Cập nhật trạng thái Appointment
         if (!$appointmentModel->updateStatus($appointmentId, $newStatus)) {
              throw new Exception("Lỗi khi cập nhật trạng thái lịch hẹn.");
         }
@@ -200,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
 }
 
 // ===================================
-// DEFAULT — METHOD NOT ALLOWED
+// DEFAULT
 // ===================================
 http_response_code(405);
 echo json_encode(["message" => "Method không được hỗ trợ."]);

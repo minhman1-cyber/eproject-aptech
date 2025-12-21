@@ -3,7 +3,9 @@
 ob_start(); 
 session_start();
 
+// ==============================
 // HÀM DEBUG & BẮT LỖI JSON
+// ==============================
 function debug_exit($e = null) {
     $buffer = ob_get_contents();
     if (ob_get_level() > 0) { ob_end_clean(); }
@@ -34,7 +36,7 @@ $allowed_origin = 'http://localhost:5173';
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     header("Access-Control-Allow-Origin: $allowed_origin");
     header("Access-Control-Allow-Credentials: true");
-    header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+    header("Access-Control-Allow-Methods: GET, OPTIONS");
     header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
     http_response_code(200);
     exit();
@@ -61,6 +63,7 @@ try {
     $appointmentModel = new Appointment($db);
     $doctorModel = new Doctor($db);
     $patientModel = new Patient($db);
+
 } catch (Exception $e) {
     debug_exit($e);
 }
@@ -74,21 +77,27 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'PATIENT') {
     exit();
 }
 
-$patientId = $_SESSION['user_id']; 
-$patientIds = $patientModel->getIdByUserId($patientId);
-        if (!$patientIds) {
-            http_response_code(404);
-            throw new Exception("Không tìm thấy hồ sơ Patient tương ứng. Vui lòng cập nhật hồ sơ cá nhân.");
-        }
+$userId = $_SESSION['user_id']; 
+
+// Lấy patient_id từ bảng patients dựa trên user_id
+$patientId = $patientModel->getIdByUserId($userId);
+
+if (!$patientId) {
+    http_response_code(404);
+    echo json_encode(["message" => "Không tìm thấy hồ sơ bệnh nhân. Vui lòng cập nhật thông tin cá nhân."]);
+    exit();
+}
 
 // ===================================
 // GET: Lấy danh sách Lịch Hẹn
 // ===================================
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
-        $stmt = $appointmentModel->getAppointmentsByPatientId($patientIds);
+        // Lấy danh sách từ bảng appointments
+        $stmt = $appointmentModel->getAppointmentsByPatientId($patientId);
         $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Lấy danh sách ID bác sĩ để query tên 1 lần (tối ưu hiệu suất)
         $doctorIds = array_unique(array_column($appointments, 'doctor_id'));
         $doctorsDetails = [];
         
@@ -98,12 +107,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
         // Ánh xạ dữ liệu cho Frontend
         $mappedAppointments = array_map(function($app) use ($doctorsDetails) {
-            $doctorDetail = $doctorsDetails[$app['doctor_id']] ?? ['full_name' => 'N/A'];
+            $doctorDetail = $doctorsDetails[$app['doctor_id']] ?? ['full_name' => 'Không xác định'];
             
             return [
                 "id" => $app['id'],
-                "doctor_id" => (int)$app['doctor_id'], // <<< THÊM: Truyền doctor_id (kiểu số)
+                "doctor_id" => (int)$app['doctor_id'], 
                 "doctorName" => $doctorDetail['full_name'],
+                "cityId" => $doctorDetail['city_id'] ?? null, // Thêm cityId nếu cần filter
                 "appointmentDate" => $app['appointment_date'],
                 "appointmentTime" => substr($app['appointment_time'], 0, 5), // Chỉ lấy HH:MM
                 "reason" => $app['reason'],
@@ -123,5 +133,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         debug_exit($e);
     }
 }
-// ... (DEFAULT METHOD NOT ALLOWED) ...
-?>
+
+// ===================================
+// DEFAULT
+// ===================================
+http_response_code(405);
+echo json_encode(["message" => "Method không được hỗ trợ."]);
+exit;

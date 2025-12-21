@@ -5,7 +5,9 @@ const API_PUBLIC_ARTICLES_URL = 'http://localhost:8888/api/v1/controllers/public
 
 const ITEMS_PER_PAGE = 8; // Cấu hình phân trang
 
-// Hàm gọi API FETCH chung
+// =======================================================
+// HÀM FETCH API CHUNG
+// =======================================================
 const useFetchApi = () => {
     return useCallback(async (url, options = {}) => {
         const response = await fetch(url, {
@@ -15,7 +17,9 @@ const useFetchApi = () => {
         });
 
         if (response.status === 401) {
-            throw new Error("Vui lòng đăng nhập lại để xem nội dung.");
+            // Với trang tin tức công khai, có thể không cần bắt lỗi 401 chặt chẽ nếu cho phép khách xem
+            // Nhưng nếu yêu cầu đăng nhập thì giữ nguyên
+            throw new Error("Vui lòng đăng nhập để xem nội dung.");
         }
         
         const contentType = response.headers.get('content-type');
@@ -54,27 +58,55 @@ const ArticleDetailModal = ({ article, isModalOpen, closeModal }) => {
     };
 
     return (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-            <div className="modal-dialog modal-xl">
-                <div className="modal-content">
-                    <div className="modal-header bg-secondary text-white">
-                        <h5 className="modal-title">{article.title}</h5>
-                        <button type="button" className="btn-close btn-close-white" onClick={closeModal}></button>
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', overflowY: 'auto' }} tabIndex="-1">
+            <div className="modal-dialog modal-xl modal-dialog-scrollable">
+                <div className="modal-content border-0 shadow-lg">
+                    <div className="modal-header bg-white border-bottom-0">
+                        <h5 className="modal-title fw-bold text-primary w-100 pe-3">{article.title}</h5>
+                        <button type="button" className="btn-close" onClick={closeModal}></button>
                     </div>
-                    <div className="modal-body">
-                        <div className="mb-3 d-flex justify-content-between align-items-center">
-                            <span className="badge bg-primary me-2">{getCategoryLabel(article.category)}</span>
-                            <small className="text-muted">Đăng bởi: {article.author_name} | Ngày: {new Date(article.created_at).toLocaleDateString()}</small>
+                    
+                    <div className="modal-body px-4 px-md-5 pb-5">
+                        {/* Ảnh Thumbnail lớn */}
+                        {article.thumbnail && (
+                            <div className="mb-4 text-center rounded overflow-hidden shadow-sm">
+                                <img 
+                                    src={article.thumbnail} 
+                                    alt={article.title} 
+                                    className="img-fluid w-100 object-fit-cover" 
+                                    style={{ maxHeight: '450px' }} 
+                                />
+                            </div>
+                        )}
+
+                        {/* Meta Data */}
+                        <div className="d-flex flex-wrap align-items-center mb-3 text-muted small">
+                            <span className={`badge me-2 bg-${article.category === 'NEWS' ? 'info' : 'success'}`}>
+                                {getCategoryLabel(article.category)}
+                            </span>
+                            <span className="me-3"><i className="bi bi-person-fill me-1"></i>{article.author_name}</span>
+                            <span><i className="bi bi-calendar3 me-1"></i>{new Date(article.created_at).toLocaleDateString('vi-VN')}</span>
                         </div>
-                        <hr />
-                        {/* Hiển thị nội dung (Tận dụng div để trình duyệt xử lý nội dung TEXT) */}
-                        <div className="mt-3" style={{ whiteSpace: 'pre-wrap' }}>
+
+                        {/* Subtitle (Mô tả ngắn/Sapo) */}
+                        {article.subtitle && (
+                            <div className="lead fst-italic text-secondary mb-4 border-start border-4 border-primary ps-3">
+                                {article.subtitle}
+                            </div>
+                        )}
+                        
+                        <hr className="my-4 opacity-10" />
+
+                        {/* Nội dung chi tiết */}
+                        {/* Lưu ý: Nếu nội dung có HTML từ CKEditor thì dùng dangerouslySetInnerHTML,
+                            còn nếu là text thuần thì dùng style whiteSpace */}
+                        <div className="article-content" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem', color: '#333' }}>
                              {article.content}
                         </div>
-                        
                     </div>
-                    <div className="modal-footer">
-                        <button type="button" className="btn btn-secondary" onClick={closeModal}>Đóng</button>
+
+                    <div className="modal-footer border-top-0">
+                        <button type="button" className="btn btn-secondary px-4" onClick={closeModal}>Đóng</button>
                     </div>
                 </div>
             </div>
@@ -107,6 +139,7 @@ const ArticleListViewer = () => {
         try {
             const data = await fetchApi(API_PUBLIC_ARTICLES_URL, { method: 'GET' });
             
+            // Dữ liệu từ API đã bao gồm thumbnail, subtitle
             setArticles(data.data.articles || []);
             setCategories(data.data.categories || []);
 
@@ -135,7 +168,7 @@ const ArticleListViewer = () => {
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             result = result.filter(a => 
-                a.title.toLowerCase().includes(term)
+                a.title.toLowerCase().includes(term) || (a.subtitle && a.subtitle.toLowerCase().includes(term))
             );
         }
         return result;
@@ -162,108 +195,159 @@ const ArticleListViewer = () => {
     // ------------------- RENDER -------------------
     return (
         <div className="container py-5">
-            <h2 className="mb-4 text-secondary">📚 Thư viện Y tế</h2>
+            <div className="text-center mb-5">
+                <h2 className="display-6 fw-bold text-primary mb-3">📚 Thư Viện Y Tế & Sức Khỏe</h2>
+                <p className="text-muted lead">Cập nhật những kiến thức y khoa mới nhất và lời khuyên hữu ích.</p>
+            </div>
 
-            {error && <div className="alert alert-danger" role="alert">{error}</div>}
+            {error && <div className="alert alert-danger shadow-sm" role="alert"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>}
 
-            <div className="card shadow-sm p-4">
+            <div className="card shadow-sm border-0 rounded-4 p-4 mb-5 bg-white">
                 
                 {/* THANH LỌC & TÌM KIẾM */}
-                <div className="d-flex flex-wrap justify-content-between align-items-center mb-4">
-                    
-                    <form onSubmit={handleSearch} className="d-flex flex-grow-1 me-3">
-                        {/* Lọc Thể loại */}
-                        <select 
-                            className="form-select me-2" 
-                            style={{ width: '150px' }}
-                            value={filterCategory}
-                            onChange={(e) => {setFilterCategory(e.target.value); setCurrentPage(1);}}
-                        >
-                            <option value="ALL">Tất cả</option>
-                            {categories.map(cat => (
-                                <option key={cat.value} value={cat.value}>{cat.label}</option>
-                            ))}
-                        </select>
-
-                        {/* Input Tìm kiếm */}
-                        <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Tìm kiếm theo Tiêu đề..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        <button type="submit" className="btn btn-outline-secondary ms-2">
-                            <i className="bi bi-search"></i>
-                        </button>
+                <div className="d-flex flex-wrap justify-content-between align-items-center">
+                    <form onSubmit={handleSearch} className="d-flex flex-grow-1 flex-md-grow-0 w-md-50 w-100">
+                        <div className="input-group">
+                             <select 
+                                className="form-select bg-light border-0" 
+                                style={{ maxWidth: '160px' }}
+                                value={filterCategory}
+                                onChange={(e) => {setFilterCategory(e.target.value); setCurrentPage(1);}}
+                            >
+                                <option value="ALL">Tất cả Chủ đề</option>
+                                {categories.map(cat => (
+                                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                ))}
+                            </select>
+                            <input
+                                type="text"
+                                className="form-control border-start-0 bg-light border-0"
+                                placeholder="Tìm kiếm bài viết..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                            <button type="submit" className="btn btn-primary px-4">
+                                <i className="bi bi-search"></i>
+                            </button>
+                        </div>
                     </form>
-                </div>
-
-                {/* Danh sách Bài viết */}
-                {isLoading ? (
-                    <div className="text-center py-5 text-secondary">
-                        <i className="bi bi-arrow-clockwise spinner-border mr-2"></i> Đang tải bài viết...
+                    <div className="mt-3 mt-md-0 text-muted small">
+                        Hiển thị {currentArticles.length} / {filteredArticles.length} bài viết
                     </div>
-                ) : filteredArticles.length === 0 ? (
-                    <div className="alert alert-info text-center">Không tìm thấy bài viết nào khớp với tiêu chí lọc.</div>
-                ) : (
-                    <div className="row">
-                        {currentArticles.map(article => (
-                            <div key={article.id} className="col-md-6 col-lg-4 mb-4">
-                                <div className="card h-100 shadow-sm border-light-subtle">
-                                    <div className="card-body d-flex flex-column">
-                                        <span className={`badge mb-2 bg-${article.category === 'NEWS' ? 'info' : 'success'}`}>
-                                            {categories.find(c => c.value === article.category)?.label || article.category}
-                                        </span>
-                                        <h5 className="card-title text-primary">{article.title}</h5>
-                                        <p className="card-text text-muted flex-grow-1" style={{ fontSize: '0.9rem' }}>
-                                            {article.content.substring(0, 100)}...
-                                        </p>
-                                        <small className="text-end text-muted mt-2">
-                                            Tác giả: {article.author_name} | {new Date(article.created_at).toLocaleDateString()}
+                </div>
+            </div>
+
+            {/* DANH SÁCH BÀI VIẾT (GRID CARD) */}
+            {isLoading ? (
+                <div className="text-center py-5 text-secondary">
+                    <div className="spinner-border text-primary mb-3" style={{width: '3rem', height: '3rem'}} role="status"></div>
+                    <p>Đang tải thư viện...</p>
+                </div>
+            ) : filteredArticles.length === 0 ? (
+                <div className="alert alert-light text-center py-5 shadow-sm rounded-4">
+                    <i className="bi bi-journal-x fs-1 text-muted mb-3 d-block"></i>
+                    Không tìm thấy bài viết nào khớp với tiêu chí tìm kiếm.
+                </div>
+            ) : (
+                <div className="row g-4">
+                    {currentArticles.map(article => (
+                        <div key={article.id} className="col-md-6 col-lg-4 col-xl-3 d-flex">
+                            <div className="card h-100 shadow-sm border-0 rounded-4 overflow-hidden w-100 card-hover-effect" style={{transition: 'transform 0.2s'}}>
+                                {/* Ảnh Thumbnail */}
+                                <div className="position-relative" style={{ height: '200px', overflow: 'hidden' }}>
+                                    <img 
+                                        src={article.thumbnail || 'https://placehold.co/600x400/e9ecef/6c757d?text=Medicenter'} 
+                                        className="card-img-top w-100 h-100 object-fit-cover" 
+                                        alt={article.title}
+                                    />
+                                    <span className={`position-absolute top-0 end-0 m-3 badge rounded-pill bg-${article.category === 'NEWS' ? 'info' : 'success'} shadow-sm`}>
+                                        {categories.find(c => c.value === article.category)?.label || article.category}
+                                    </span>
+                                </div>
+                                
+                                <div className="card-body d-flex flex-column p-4">
+                                    <h5 className="card-title fw-bold mb-2 text-dark text-truncate-2-lines" title={article.title}>
+                                        {article.title}
+                                    </h5>
+                                    
+                                    {/* Subtitle / Mô tả ngắn */}
+                                    <p className="card-text text-muted small flex-grow-1 mb-3 text-truncate-3-lines">
+                                        {article.subtitle 
+                                            ? article.subtitle 
+                                            : article.content.replace(/<[^>]+>/g, '').substring(0, 100) + '...'
+                                        }
+                                    </p>
+                                    
+                                    <div className="d-flex justify-content-between align-items-center mt-auto pt-3 border-top border-light">
+                                        <small className="text-muted" style={{fontSize: '0.75rem'}}>
+                                            <i className="bi bi-clock me-1"></i>
+                                            {new Date(article.created_at).toLocaleDateString('vi-VN')}
                                         </small>
                                         <button 
-                                            className="btn btn-sm btn-outline-secondary mt-3"
+                                            className="btn btn-sm btn-outline-primary rounded-pill px-3"
                                             onClick={() => setViewingArticle(article)}
                                         >
-                                            Xem chi tiết &rarr;
+                                            Đọc tiếp
                                         </button>
                                     </div>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                )}
-                
-                {/* Phân trang */}
-                {totalPages > 1 && (
-                    <nav className="mt-4 d-flex justify-content-center">
-                        <ul className="pagination shadow-sm">
-                            <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                                <button className="page-link" onClick={() => handlePageChange(currentPage - 1)}>Trước</button>
-                            </li>
-                            {[...Array(totalPages)].map((_, index) => (
-                                <li key={index} className={`page-item ${currentPage === index + 1 ? 'active' : ''}`}>
-                                    <button className="page-link" onClick={() => handlePageChange(index + 1)}>
-                                        {index + 1}
-                                    </button>
-                                </li>
-                            ))}
-                            <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                                <button className="page-link" onClick={() => handlePageChange(currentPage + 1)}>Sau</button>
-                            </li>
-                        </ul>
-                    </nav>
-                )}
-
-            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
             
+            {/* Phân trang */}
+            {totalPages > 1 && (
+                <nav className="mt-5 d-flex justify-content-center">
+                    <ul className="pagination shadow-sm rounded-pill overflow-hidden">
+                        <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+                            <button className="page-link border-0 py-2 px-3" onClick={() => handlePageChange(currentPage - 1)}>
+                                <i className="bi bi-chevron-left"></i>
+                            </button>
+                        </li>
+                        {[...Array(totalPages)].map((_, index) => (
+                            <li key={index} className={`page-item ${currentPage === index + 1 ? 'active' : ''}`}>
+                                <button className="page-link border-0 py-2 px-3" onClick={() => handlePageChange(index + 1)}>
+                                    {index + 1}
+                                </button>
+                            </li>
+                        ))}
+                        <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+                            <button className="page-link border-0 py-2 px-3" onClick={() => handlePageChange(currentPage + 1)}>
+                                <i className="bi bi-chevron-right"></i>
+                            </button>
+                        </li>
+                    </ul>
+                </nav>
+            )}
+
             {/* Modal Xem Chi tiết */}
             <ArticleDetailModal 
                 article={viewingArticle}
                 isModalOpen={!!viewingArticle}
                 closeModal={() => setViewingArticle(null)}
             />
+            
+            {/* CSS nội bộ để xử lý text truncate nhiều dòng (nếu Bootstrap class không đủ) */}
+            <style>{`
+                .text-truncate-2-lines {
+                    display: -webkit-box;
+                    -webkit-line-clamp: 2;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                }
+                .text-truncate-3-lines {
+                    display: -webkit-box;
+                    -webkit-line-clamp: 3;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                }
+                .card-hover-effect:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+                }
+            `}</style>
         </div>
     );
 };

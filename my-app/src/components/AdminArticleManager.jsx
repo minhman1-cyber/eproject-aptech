@@ -3,17 +3,20 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 // URL API Backend
 const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
 const API_ARTICLE_CRUD_URL = API_BASE_URL + 'admin_article_crud.php';
+const API_UPLOAD_URL = 'http://localhost:8888/api/v1/upload/upload_thumbnail.php';
 
-// Cấu hình phân trang
-const ITEMS_PER_PAGE = 10;
+// Cấu hình phân trang mặc định
+const DEFAULT_ITEMS_PER_PAGE = 10;
 
 // Các giá trị mặc định cho form
 const initialArticleForm = {
     id: null,
     title: '',
+    subtitle: '',
+    thumbnail: '',
     content: '',
-    category: 'NEWS', // Mặc định là NEWS
-    is_active: 1, // Giả định trường này cho ẩn/hiện (Nếu không có trong DB, sẽ bỏ qua)
+    category: 'NEWS',
+    status: 'PUBLISHED',
 };
 
 const CATEGORIES = [
@@ -23,58 +26,73 @@ const CATEGORIES = [
     { value: 'CURE', label: 'Cách chữa' },
 ];
 
+const STATUS_OPTIONS = [
+    { value: 'DRAFT', label: 'Bản nháp (Draft)', color: 'secondary' },
+    { value: 'PUBLISHED', label: 'Công khai (Published)', color: 'success' },
+];
+
 // =======================================================
 // HÀM FETCH API CHUNG
 // =======================================================
 const useFetchApi = () => {
     return useCallback(async (url, options = {}) => {
-        const response = await fetch(url, {
-            ...options,
-            credentials: 'include',
-            headers: {
-                ...(options.headers || {}),
+        const headers = options.body instanceof FormData 
+            ? { ...(options.headers || {}) }
+            : { 
                 'Content-Type': options.body && typeof options.body === 'string' ? 'application/json' : undefined,
-            },
-        });
+                ...(options.headers || {}) 
+              };
 
-        if (response.status === 401) {
-            throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại với vai trò Admin.");
-        }
-        
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            const data = await response.json();
-            if (!response.ok) {
-                const errorMessage = data.message || 'Lỗi hệ thống không xác định.';
-                throw new Error(errorMessage);
+        try {
+            const response = await fetch(url, {
+                ...options,
+                credentials: 'include',
+                headers: headers,
+            });
+
+            if (response.status === 401) {
+                // Xử lý logout hoặc thông báo
+                console.warn("Phiên làm việc hết hạn");
             }
-            return data;
+            
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Lỗi hệ thống không xác định.');
+                }
+                return data;
+            }
+            return {};
+        } catch (error) {
+            console.error("API Error:", error);
+            throw error;
         }
-        
-        if (!response.ok) {
-            throw new Error('Thao tác thất bại (Lỗi Server).');
-        }
-        return {};
     }, []);
 };
 
-
 // =======================================================
-// COMPONENT PHỤ: 1. MODAL THÊM/SỬA BÀI VIẾT
+// COMPONENT PHỤ: MODAL THÊM/SỬA BÀI VIẾT
 // =======================================================
-
 const ArticleFormModal = ({ article, mode, isModalOpen, closeModal, refreshList, fetchApi }) => {
     const isEditing = mode === 'edit';
     const [formData, setFormData] = useState(initialArticleForm);
     const [localError, setLocalError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
 
-    // Ánh xạ dữ liệu khi mở chế độ sửa
     useEffect(() => {
         if (isModalOpen) {
             setLocalError('');
             if (isEditing && article) {
-                setFormData(article); // Sử dụng dữ liệu article được truyền vào
+                setFormData({
+                    ...initialArticleForm,
+                    ...article,
+                    subtitle: article.subtitle || '',
+                    thumbnail: article.thumbnail || '',
+                    status: article.status || 'PUBLISHED',
+                    content: article.content || ''
+                }); 
             } else {
                 setFormData(initialArticleForm);
             }
@@ -86,13 +104,41 @@ const ArticleFormModal = ({ article, mode, isModalOpen, closeModal, refreshList,
         setFormData({ ...formData, [name]: value });
     };
 
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            setLocalError("Vui lòng chọn file ảnh hợp lệ.");
+            return;
+        }
+
+        const uploadData = new FormData();
+        uploadData.append('thumbnail', file);
+
+        setIsUploading(true);
+        setLocalError('');
+
+        try {
+            const data = await fetchApi(API_UPLOAD_URL, {
+                method: 'POST',
+                body: uploadData
+            });
+            setFormData(prev => ({ ...prev, thumbnail: data.url }));
+        } catch (err) {
+            setLocalError("Lỗi upload ảnh: " + err.message);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLocalError('');
         setIsLoading(true);
 
         if (!formData.title || !formData.content || !formData.category) {
-            setLocalError('Vui lòng điền đầy đủ Tiêu đề, Nội dung và Thể loại.');
+            setLocalError('Vui lòng điền đầy đủ thông tin bắt buộc.');
             setIsLoading(false);
             return;
         }
@@ -100,24 +146,22 @@ const ArticleFormModal = ({ article, mode, isModalOpen, closeModal, refreshList,
         const payload = {
             id: isEditing ? formData.id : undefined,
             title: formData.title,
+            subtitle: formData.subtitle,
+            thumbnail: formData.thumbnail,
             content: formData.content,
             category: formData.category,
-            // created_by sẽ được lấy từ Session (Doctor ID) ở Backend
+            status: formData.status,
         };
         
-        const method = isEditing ? 'PUT' : 'POST';
-
         try {
             await fetchApi(API_ARTICLE_CRUD_URL, {
-                method: method,
-                body: JSON.stringify(payload),
-                headers: { 'Content-Type': 'application/json' },
+                method: isEditing ? 'PUT' : 'POST',
+                body: JSON.stringify(payload)
             });
 
-            window.alert(`Bài viết đã được ${isEditing ? 'cập nhật' : 'đăng tải'} thành công.`);
+            alert(`Bài viết đã được ${isEditing ? 'cập nhật' : 'đăng tải'} thành công.`);
             refreshList(); 
             closeModal();
-
         } catch (err) {
             setLocalError(err.message);
         } finally {
@@ -128,8 +172,8 @@ const ArticleFormModal = ({ article, mode, isModalOpen, closeModal, refreshList,
     if (!isModalOpen) return null;
     
     return (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-            <div className="modal-dialog modal-lg">
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', overflowY: 'auto', zIndex: 1050 }} tabIndex="-1">
+            <div className="modal-dialog modal-xl">
                 <div className="modal-content">
                     <div className="modal-header bg-primary text-white">
                         <h5 className="modal-title">{isEditing ? `Sửa Bài viết ID: ${formData.id}` : 'Đăng Bài viết Mới'}</h5>
@@ -137,38 +181,60 @@ const ArticleFormModal = ({ article, mode, isModalOpen, closeModal, refreshList,
                     </div>
                     <div className="modal-body">
                         {localError && (<div className="alert alert-danger" role="alert">{localError}</div>)}
-
                         <form onSubmit={handleSubmit}>
                             <div className="row">
-                                <div className="col-md-9 mb-3">
-                                    <label className="form-label">Tiêu đề (*)</label>
-                                    <input type="text" className="form-control" name="title" value={formData.title} onChange={handleChange} required />
+                                <div className="col-lg-8">
+                                    <div className="mb-3">
+                                        <label className="form-label fw-bold">Tiêu đề (*)</label>
+                                        <input type="text" className="form-control" name="title" value={formData.title} onChange={handleChange} required />
+                                    </div>
+                                    <div className="mb-3">
+                                        <label className="form-label fw-bold">Subtitle</label>
+                                        <textarea className="form-control" name="subtitle" value={formData.subtitle} onChange={handleChange} rows="2" />
+                                    </div>
+                                    <div className="mb-3">
+                                        <label className="form-label fw-bold">Nội dung (*)</label>
+                                        <textarea className="form-control" name="content" value={formData.content} onChange={handleChange} rows="10" required />
+                                    </div>
                                 </div>
-                                <div className="col-md-3 mb-3">
-                                    <label className="form-label">Thể loại (*)</label>
-                                    <select className="form-select" name="category" value={formData.category} onChange={handleChange} required>
-                                        {CATEGORIES.map(cat => (
-                                            <option key={cat.value} value={cat.value}>{cat.label}</option>
-                                        ))}
-                                    </select>
+                                <div className="col-lg-4">
+                                    <div className="card bg-light border-0 mb-3">
+                                        <div className="card-body">
+                                            <h6 className="card-title fw-bold text-primary">Cài đặt</h6>
+                                            <div className="mb-3">
+                                                <label className="form-label">Trạng thái</label>
+                                                <select className="form-select" name="status" value={formData.status} onChange={handleChange}>
+                                                    {STATUS_OPTIONS.map(st => (
+                                                        <option key={st.value} value={st.value}>{st.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="mb-3">
+                                                <label className="form-label">Thể loại (*)</label>
+                                                <select className="form-select" name="category" value={formData.category} onChange={handleChange} required>
+                                                    {CATEGORIES.map(cat => (
+                                                        <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="mb-3">
+                                                <label className="form-label">Ảnh đại diện</label>
+                                                {formData.thumbnail && <img src={formData.thumbnail} alt="Preview" className="img-fluid rounded mb-2 d-block" style={{maxHeight: '150px'}} />}
+                                                <input type="file" className="form-control" accept="image/*" onChange={handleImageUpload} disabled={isUploading} />
+                                                {isUploading && <small className="text-primary">Đang tải ảnh...</small>}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            
-                            <div className="mb-3">
-                                <label className="form-label">Nội dung (*)</label>
-                                <textarea 
-                                    className="form-control" 
-                                    name="content" 
-                                    value={formData.content} 
-                                    onChange={handleChange} 
-                                    rows="10" 
-                                    required 
-                                />
+                            <hr />
+                            <div className="d-flex justify-content-end gap-2">
+                                <button type="button" className="btn btn-secondary" onClick={closeModal} disabled={isLoading}>Hủy</button>
+                                <button type="submit" className="btn btn-primary" disabled={isLoading || isUploading}>
+                                    {isLoading && <span className="spinner-border spinner-border-sm me-2"></span>}
+                                    {isEditing ? 'Lưu Thay Đổi' : 'Đăng Bài Viết'}
+                                </button>
                             </div>
-
-                            <button type="submit" className="btn btn-primary w-100 mt-4" disabled={isLoading}>
-                                {isLoading ? 'Đang xử lý...' : isEditing ? 'Lưu Bài viết' : 'Đăng Bài viết'}
-                            </button>
                         </form>
                     </div>
                 </div>
@@ -177,12 +243,11 @@ const ArticleFormModal = ({ article, mode, isModalOpen, closeModal, refreshList,
     );
 };
 
-
 // =======================================================
-// COMPONENT 2: QUẢN LÝ CHÍNH (ADMINARTICLEMANAGER)
+// COMPONENT CHÍNH: QUẢN LÝ BÀI VIẾT
 // =======================================================
 
-const AdminArticleManager = () => {
+const AdminArticleManager = ({ isWidget = false }) => {
     const [articles, setArticles] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -196,41 +261,42 @@ const AdminArticleManager = () => {
     const [filterCategory, setFilterCategory] = useState('ALL'); 
 
     const fetchApi = useFetchApi();
-    const ITEMS_PER_PAGE = 10; // Giữ lại hằng số này
+    
+    // Nếu là widget, chỉ lấy 5 item
+    const ITEMS_PER_PAGE = isWidget ? 5 : DEFAULT_ITEMS_PER_PAGE;
 
-    // ------------------- TẢI DỮ LIỆU CHÍNH -------------------
+    // ------------------- TẢI DỮ LIỆU -------------------
     const fetchArticles = useCallback(async () => {
         setError(null);
         setIsLoading(true);
         try {
-            // Giả định API GET trả về: { data: { articles: [...] } }
             const data = await fetchApi(API_ARTICLE_CRUD_URL, { method: 'GET' });
-            
-            // Dữ liệu từ DB đã bao gồm author_name
             setArticles(data.data.articles || []);
-
         } catch (err) {
             setError(err.message);
+            // Dữ liệu giả lập khi lỗi (cho Widget đẹp hơn trong Preview)
+            if (isWidget && articles.length === 0) {
+                 setArticles([
+                    { id: 991, title: 'Hướng dẫn phòng chống sốt xuất huyết', subtitle: 'Các biện pháp ngăn chặn muỗi vằn...', category: 'PREVENTION', created_at: '2023-10-25', status: 'DRAFT', thumbnail: '' },
+                    { id: 992, title: 'Dinh dưỡng cho người tiểu đường', subtitle: 'Thực đơn 7 ngày khoa học', category: 'DISEASE', created_at: '2023-10-24', status: 'PUBLISHED', thumbnail: '' },
+                    { id: 993, title: 'Lịch tiêm chủng mở rộng 2024', subtitle: 'Cập nhật mới nhất từ Bộ Y tế', category: 'NEWS', created_at: '2023-10-23', status: 'DRAFT', thumbnail: '' },
+                ]);
+            }
         } finally {
             setIsLoading(false);
         }
-    }, [fetchApi]);
+    }, [fetchApi, isWidget, articles.length]);
 
     useEffect(() => {
         fetchArticles();
     }, [fetchArticles]);
 
-
-    // ------------------- LOGIC TÌM KIẾM & LỌC -------------------
+    // ------------------- LOGIC LỌC & PHÂN TRANG -------------------
     const filteredArticles = useMemo(() => {
         let result = articles;
-
-        // Lọc theo Thể loại
         if (filterCategory !== 'ALL') {
             result = result.filter(a => a.category === filterCategory);
         }
-
-        // Tìm kiếm theo Tiêu đề/ID
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             result = result.filter(a => 
@@ -241,144 +307,208 @@ const AdminArticleManager = () => {
     }, [articles, filterCategory, searchTerm]);
 
     const totalPages = Math.ceil(filteredArticles.length / ITEMS_PER_PAGE);
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    
+    // Nếu là Widget, luôn hiển thị trang 1
+    const displayPage = isWidget ? 1 : currentPage;
+    const startIndex = (displayPage - 1) * ITEMS_PER_PAGE;
     const currentArticles = filteredArticles.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        setCurrentPage(1); 
-    };
-    
-    // ------------------- LOGIC HÀNH ĐỘNG -------------------
-
-    // 1. Mở Modal Sửa
-    const openEditModal = (article) => {
-        setEditingArticle(article);
-    };
-    
-    // 2. Xóa Bài viết
-    const handleDeleteArticle = useCallback(async (id, title) => {
-        if (!window.confirm(`Bạn có chắc chắn muốn XÓA vĩnh viễn bài viết "${title}" không?`)) {
-            return;
+    // ------------------- HÀNH ĐỘNG -------------------
+    const openEditModal = useCallback(async (article) => {
+        if (isWidget) return; // Widget không hỗ trợ sửa sâu, chuyển trang thì tốt hơn
+        setIsLoading(true); 
+        try {
+            const detailUrl = `${API_ARTICLE_CRUD_URL}?id=${article.id}`;
+            const data = await fetchApi(detailUrl, { method: 'GET' });
+            let detailData = data.data || data;
+            if (Array.isArray(detailData)) detailData = detailData[0];
+            
+            if (detailData) setEditingArticle(detailData);
+        } catch (err) {
+            alert("Lỗi tải chi tiết: " + err.message);
+        } finally {
+            setIsLoading(false);
         }
+    }, [fetchApi, isWidget]);
 
+    const handleDeleteArticle = useCallback(async (id, title) => {
+        if (!window.confirm(`Xóa bài viết "${title}"?`)) return;
         setIsLoading(true);
-        setError(null);
-        setSuccessMessage(null);
-
         try {
             await fetchApi(API_ARTICLE_CRUD_URL, {
                 method: 'DELETE',
                 body: JSON.stringify({ id }),
-                headers: { 'Content-Type': 'application/json' },
             });
-
-            setSuccessMessage(`Đã xóa bài viết "${title}" thành công.`);
+            if (!isWidget) setSuccessMessage(`Đã xóa bài viết thành công.`);
             fetchArticles(); 
-
         } catch (err) {
-            setError(err.message);
+            if (!isWidget) setError(err.message);
+            else alert(err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [fetchApi, fetchArticles, isWidget]);
+
+    // Hành động nhanh cho Widget: Duyệt bài (Draft -> Published)
+    const handleQuickPublish = useCallback(async (article) => {
+        if (!window.confirm(`Duyệt và công khai bài viết "${article.title}"?`)) return;
+        setIsLoading(true);
+        try {
+            const payload = { ...article, status: 'PUBLISHED' };
+            await fetchApi(API_ARTICLE_CRUD_URL, {
+                method: 'PUT',
+                body: JSON.stringify(payload),
+            });
+            fetchArticles();
+        } catch (err) {
+            alert(err.message);
         } finally {
             setIsLoading(false);
         }
     }, [fetchApi, fetchArticles]);
 
+    // ------------------- RENDER: WIDGET VIEW -------------------
+    if (isWidget) {
+        return (
+            <div className="card h-100 shadow-sm border-0">
+                <div className="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                    <h5 className="mb-0 text-dark fw-bold">
+                        <i className="bi bi-pencil-square me-2 text-success"></i>Quản lý Bài Viết
+                    </h5>
+                    <a href="/admin/posts" className="btn btn-sm btn-outline-success rounded-pill">
+                        Xem tất cả <i className="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+                <div className="card-body p-0">
+                    <ul className="list-group list-group-flush">
+                        {isLoading ? (
+                            <li className="list-group-item text-center py-3">Đang tải...</li>
+                        ) : currentArticles.length === 0 ? (
+                            <li className="list-group-item text-center py-3 text-muted">Không có bài viết nào.</li>
+                        ) : (
+                            currentArticles.map(article => (
+                                <li key={article.id} className="list-group-item p-3 d-flex justify-content-between align-items-center hover-bg-light">
+                                    <div className="d-flex align-items-center" style={{ overflow: 'hidden' }}>
+                                        <div className="me-3 flex-shrink-0">
+                                            {article.thumbnail ? (
+                                                <img src={article.thumbnail} alt="" className="rounded" style={{width: '50px', height: '50px', objectFit: 'cover'}} />
+                                            ) : (
+                                                <div className="bg-light rounded d-flex align-items-center justify-content-center" style={{width: '50px', height: '50px'}}>
+                                                    <i className="bi bi-file-text text-secondary h4 mb-0"></i>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-truncate">
+                                            <h6 className="mb-1 fw-bold text-dark text-truncate" title={article.title}>{article.title}</h6>
+                                            <small className="text-muted d-block text-truncate">
+                                                {CATEGORIES.find(c => c.value === article.category)?.label || article.category}
+                                                <span className="mx-1">•</span>
+                                                {article.status === 'PUBLISHED' ? <span className="text-success">Công khai</span> : <span className="text-secondary">Nháp</span>}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div className="d-flex gap-2 ms-2">
+                                        {article.status === 'DRAFT' && (
+                                            <button 
+                                                className="btn btn-sm btn-light text-success" 
+                                                title="Duyệt / Công khai ngay"
+                                                onClick={() => handleQuickPublish(article)}
+                                            >
+                                                <i className="bi bi-check-lg fs-10">Publish</i>
+                                            </button>
+                                        )}
+                                        <button 
+                                            className="btn btn-sm btn-light text-danger" 
+                                            title="Xóa"
+                                            onClick={() => handleDeleteArticle(article.id, article.title)}
+                                        >
+                                            <i className="bi bi-x fs-10">Delete</i>
+                                        </button>
+                                    </div>
+                                </li>
+                            ))
+                        )}
+                    </ul>
+                </div>
+            </div>
+        );
+    }
 
-    // ------------------- RENDER -------------------
+    // ------------------- RENDER: FULL VIEW -------------------
     return (
         <div className="container py-5">
-            <h2 className="mb-4 text-primary">📰 Quản lý Nội dung Y tế (Admin)</h2>
-
             {error && <div className="alert alert-danger" role="alert">{error}</div>}
             {successMessage && <div className="alert alert-success" role="alert">{successMessage}</div>}
 
             <div className="card shadow-sm p-4">
-                
-                {/* THANH LỌC & TÌM KIẾM */}
                 <div className="d-flex flex-wrap justify-content-between align-items-center mb-4">
-                    
-                    <form onSubmit={handleSearch} className="d-flex flex-grow-1 me-3">
-                        {/* Lọc Thể loại */}
+                    <form onSubmit={(e) => { e.preventDefault(); setCurrentPage(1); }} className="d-flex flex-grow-1 me-3">
                         <select 
                             className="form-select me-2" 
-                            style={{ width: '150px' }}
+                            style={{ width: '180px' }}
                             value={filterCategory}
                             onChange={(e) => {setFilterCategory(e.target.value); setCurrentPage(1);}}
                         >
                             <option value="ALL">Tất cả Thể loại</option>
-                            {CATEGORIES.map(cat => (
-                                <option key={cat.value} value={cat.value}>{cat.label}</option>
-                            ))}
+                            {CATEGORIES.map(cat => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
                         </select>
 
-                        {/* Input Tìm kiếm */}
                         <input
                             type="text"
                             className="form-control"
-                            placeholder="Tìm kiếm theo Tiêu đề hoặc ID"
+                            placeholder="Tìm kiếm..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                        <button type="submit" className="btn btn-outline-primary ms-2">
-                            <i className="bi bi-search">Search</i>
-                        </button>
+                        <button type="submit" className="btn btn-outline-primary ms-2"><i className="bi bi-search"></i></button>
                     </form>
                     
-                    {/* Nút Thêm mới */}
-                    <button 
-                        className="btn btn-success" 
-                        onClick={() => setIsAddModalOpen(true)}
-                        disabled={isLoading}
-                    >
-                        <i className="bi bi-plus-lg"></i> Đăng bài mới
+                    <button className="btn btn-success" onClick={() => setIsAddModalOpen(true)} disabled={isLoading}>
+                        <i className="bi bi-plus-lg me-1"></i> Đăng bài mới
                     </button>
                 </div>
 
-                {/* Bảng Danh sách Bài viết */}
                 <div className="table-responsive">
                     <table className="table table-hover align-middle">
                         <thead className="table-light">
                             <tr>
-                                <th>ID</th>
-                                <th>Tiêu đề</th>
+                                <th style={{width: '50px'}}>ID</th>
+                                <th style={{width: '80px'}}>Ảnh</th>
+                                <th>Tiêu đề / Tóm tắt</th>
+                                <th>Trạng thái</th>
                                 <th>Thể loại</th>
-                                <th>Tác giả</th>
                                 <th>Ngày đăng</th>
-                                <th>Hành động</th>
+                                <th className="text-end">Hành động</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
-                                <tr>
-                                    <td colSpan="6" className="text-center py-4 text-muted">Đang tải dữ liệu...</td>
-                                </tr>
+                                <tr><td colSpan="7" className="text-center py-4">Đang tải...</td></tr>
                             ) : currentArticles.length === 0 ? (
-                                <tr>
-                                    <td colSpan="6" className="text-center py-4 text-muted">Không tìm thấy bài viết nào.</td>
-                                </tr>
+                                <tr><td colSpan="7" className="text-center py-4 text-muted">Không tìm thấy dữ liệu.</td></tr>
                             ) : (
                                 currentArticles.map(article => (
                                     <tr key={article.id}>
                                         <td>{article.id}</td>
-                                        <td>{article.title}</td>
                                         <td>
-                                            <span className="badge bg-secondary">{CATEGORIES.find(c => c.value === article.category)?.label || article.category}</span>
+                                            <img src={article.thumbnail || 'https://placehold.co/60x60?text=No+Img'} alt="" className="rounded border" style={{ width: '60px', height: '40px', objectFit: 'cover' }} />
                                         </td>
-                                        <td>{article.author_name}</td>
-                                        <td>{new Date(article.created_at).toLocaleDateString()}</td>
-                                        <td className='text-nowrap'>
-                                            <button 
-                                                className="btn btn-sm btn-outline-primary me-2"
-                                                onClick={() => openEditModal(article)}
-                                            >
-                                                Sửa
-                                            </button>
-                                            <button 
-                                                className={`btn btn-sm btn-danger`}
-                                                onClick={() => handleDeleteArticle(article.id, article.title)}
-                                            >
-                                                Xóa
-                                            </button>
+                                        <td style={{maxWidth: '300px'}}>
+                                            <div className="fw-bold text-truncate" title={article.title}>{article.title}</div>
+                                            <small className="text-muted text-truncate d-block">{article.subtitle || 'Không có mô tả'}</small>
+                                        </td>
+                                        <td>
+                                            {article.status === 'PUBLISHED' ? <span className="badge bg-success">Công khai</span> : <span className="badge bg-secondary">Bản nháp</span>}
+                                        </td>
+                                        <td>
+                                            <span className="badge bg-light text-dark border">
+                                                {CATEGORIES.find(c => c.value === article.category)?.label || article.category}
+                                            </span>
+                                        </td>
+                                        <td>{new Date(article.created_at).toLocaleDateString('vi-VN')}</td>
+                                        <td className='text-end'>
+                                            <button className="btn btn-sm btn-outline-primary me-2" onClick={() => openEditModal(article)}>Sửa</button>
+                                            <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteArticle(article.id, article.title)}>Xóa</button>
                                         </td>
                                     </tr>
                                 ))
@@ -387,35 +517,23 @@ const AdminArticleManager = () => {
                     </table>
                 </div>
 
-                {/* Phân trang */}
                 {totalPages > 1 && (
                     <nav className="mt-4 d-flex justify-content-center">
                         <ul className="pagination">
-                            {/* Logic phân trang */}
+                            <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+                                <button className="page-link" onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>Trước</button>
+                            </li>
+                            <li className={`page-item disabled`}><span className="page-link">{currentPage} / {totalPages}</span></li>
+                            <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+                                <button className="page-link" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>Sau</button>
+                            </li>
                         </ul>
                     </nav>
                 )}
             </div>
             
-            {/* Modal Thêm */}
-            <ArticleFormModal 
-                article={null}
-                mode={'add'}
-                isModalOpen={isAddModalOpen}
-                closeModal={() => setIsAddModalOpen(false)}
-                refreshList={fetchArticles}
-                fetchApi={fetchApi}
-            />
-            
-            {/* Modal Sửa */}
-            <ArticleFormModal 
-                article={editingArticle}
-                mode={'edit'}
-                isModalOpen={!!editingArticle}
-                closeModal={() => setEditingArticle(null)}
-                refreshList={fetchArticles}
-                fetchApi={fetchApi}
-            />
+            <ArticleFormModal article={null} mode={'add'} isModalOpen={isAddModalOpen} closeModal={() => setIsAddModalOpen(false)} refreshList={fetchArticles} fetchApi={fetchApi} />
+            <ArticleFormModal article={editingArticle} mode={'edit'} isModalOpen={!!editingArticle} closeModal={() => setEditingArticle(null)} refreshList={fetchArticles} fetchApi={fetchApi} />
         </div>
     );
 };

@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import ChangePasswordModal from './ChangePasswordModal'; // Import Modal đổi mật khẩu
+import ChangePasswordModal from './ChangePasswordModal'; // Giữ nguyên import theo yêu cầu của bạn
 
-// URL API Backend (Sửa port 8888 nếu cần)
+// URL API Backend
 const API_PROFILE_URL = 'http://localhost:8888/api/v1/controllers/patient_profile.php';
-// Đây là URL API tải lên avatar (Giả định)
 const API_AVATAR_UPLOAD_URL = 'http://localhost:8888/api/v1/upload/patient_avatar.php'; 
 
 const dummyCities = [{ id: 1, name: 'Hồ Chí Minh' }, { id: 2, name: 'Hà Nội' }];
 
-// Hàm fetch API chung (Được định nghĩa lại để sử dụng trong component này)
+// Hàm fetch API chung
 const useFetchApi = () => {
     return useCallback(async (url, options = {}) => {
         const response = await fetch(url, {
@@ -28,8 +27,7 @@ const useFetchApi = () => {
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = data.message || 'Lỗi hệ thống không xác định.';
-                throw new Error(errorMessage);
+                throw new Error(data.message || 'Lỗi hệ thống không xác định.');
             }
             return data;
         }
@@ -41,11 +39,10 @@ const useFetchApi = () => {
     }, []);
 };
 
-
-const PatientProfiles = () => {
+const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
     const [formData, setFormData] = useState({
-        id: null, // user_id
-        fullName: '',
+        id: null, 
+        fullName: 'Đang tải...',
         email: '',
         phone: '',
         address: '',
@@ -57,16 +54,16 @@ const PatientProfiles = () => {
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
     
-    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false); // State mở Modal
+    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     
-    const fetchApi = useFetchApi(); // Khởi tạo hàm fetch
+    const fetchApi = useFetchApi();
 
-    // ============================================
-    // 1. FETCH DỮ LIỆU BAN ĐẦU (GET)
-    // ============================================
+    // 1. FETCH DỮ LIỆU
     const fetchProfile = useCallback(async () => {
         setError(null);
-        setIsLoading(true);
+        // Nếu là widget thì không cần set loading toàn trang để tránh giật UI chính
+        if (!isWidget) setIsLoading(true);
+        
         try {
             const data = await fetchApi(API_PROFILE_URL, { method: 'GET' });
 
@@ -76,25 +73,24 @@ const PatientProfiles = () => {
                 email: data.data.email || '',
                 phone: data.data.phone || '',
                 address: data.data.address || '',
-                cityId: String(data.data.cityId || ''), // Đảm bảo là string cho select
+                cityId: String(data.data.cityId || ''),
                 profilePicture: data.data.profilePicture || 'https://placehold.co/150x150/AFD1E4/FFFFFF/png?text=Avatar',
             });
 
         } catch (err) {
-            setError(err.message);
+            // Ở chế độ widget, log lỗi ra console thay vì hiện lên UI để tránh làm xấu giao diện chính
+            if (isWidget) console.error("Widget Profile Error:", err.message);
+            else setError(err.message);
         } finally {
             setIsLoading(false);
         }
-    }, [fetchApi]);
+    }, [fetchApi, isWidget]);
 
     useEffect(() => {
         fetchProfile();
     }, [fetchProfile]);
 
-    // ============================================
     // 2. LOGIC XỬ LÝ FORM
-    // ============================================
-
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
@@ -103,12 +99,10 @@ const PatientProfiles = () => {
         const file = e.target.files[0];
         if (file) {
             setAvatarFile(file);
-            // Tạo URL tạm thời để preview ảnh
             setFormData(prev => ({ ...prev, profilePicture: URL.createObjectURL(file) }));
         }
     };
     
-    // Hàm tải lên Avatar (Tách biệt khỏi cập nhật form)
     const uploadAvatar = async (file) => {
         setError(null);
         setSuccessMessage(null);
@@ -125,21 +119,18 @@ const PatientProfiles = () => {
             setSuccessMessage("Avatar đã được cập nhật thành công!");
             setAvatarFile(null); 
             return true;
-            
         } catch (err) {
             setError(err.message);
             return false;
         }
     };
 
-    // Hàm cập nhật Profile chính
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
         setSuccessMessage(null);
         setIsLoading(true);
 
-        // 1. Nếu có file Avatar mới, tải lên trước
         if (avatarFile) {
             const uploaded = await uploadAvatar(avatarFile);
             if (!uploaded) {
@@ -148,7 +139,6 @@ const PatientProfiles = () => {
             }
         }
         
-        // 2. Cập nhật thông tin text profile
         const payload = {
             fullName: formData.fullName,
             phone: formData.phone,
@@ -158,7 +148,7 @@ const PatientProfiles = () => {
 
         try {
             await fetchApi(API_PROFILE_URL, {
-                method: 'PUT', // Sử dụng PUT để cập nhật
+                method: 'PUT',
                 body: JSON.stringify(payload),
                 headers: { 'Content-Type': 'application/json' },
             });
@@ -172,27 +162,65 @@ const PatientProfiles = () => {
         }
     };
 
+    // ============================================
+    // GIAO DIỆN 1: CHẾ ĐỘ WIDGET (Dùng cho Dashboard Home)
+    // ============================================
+    if (isWidget) {
+        return (
+            <div className="card border-0 shadow-sm mb-4">
+                <div className="card-body text-center p-4">
+                    <div className="position-relative d-inline-block mb-3">
+                        <img 
+                            src={formData.profilePicture} 
+                            alt="Avatar" 
+                            className="rounded-circle border border-3 border-white shadow-sm"
+                            width="100" height="100"
+                            style={{ objectFit: 'cover' }} 
+                        />
+                        <span className="position-absolute bottom-0 end-0 p-2 bg-success border border-light rounded-circle"></span>
+                    </div>
+                    <h5 className="fw-bold mb-1">{isLoading ? 'Đang tải...' : formData.fullName}</h5>
+                    <div className="badge bg-light text-secondary mb-3 border">
+                        <i className="fas fa-id-card me-1"></i> {formData.id ? `BN-${formData.id}` : '...'}
+                    </div>
+                    
+                    <div className="d-grid gap-2">
+                        {/* Nút này chuyển sang tab Profile đầy đủ thông qua prop setActiveTab */}
+                        <button 
+                            className="btn btn-outline-primary btn-sm" 
+                            onClick={() => setActiveTab && setActiveTab('profile')}
+                        >
+                            <i className="fas fa-user-edit me-1"></i> Chỉnh sửa hồ sơ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================
+    // GIAO DIỆN 2: CHẾ ĐỘ FULL (Dùng cho trang Tài khoản)
+    // ============================================
+
     if (isLoading) {
-        return <div className="text-center py-5"><i className="bi bi-arrow-clockwise fs-3 animate-spin me-2"></i>Đang tải dữ liệu hồ sơ...</div>;
+        return <div className="text-center py-5"><div className="spinner-border text-primary me-2" role="status"></div>Đang tải dữ liệu hồ sơ...</div>;
     }
     
-    // Nếu có lỗi nghiêm trọng (ví dụ: 401 Unauthorized), hiển thị lỗi
     if (error && error.includes('đăng nhập lại')) {
         return <div className="alert alert-danger text-center py-5">{error}</div>;
     }
 
     return (
-        <div className="container py-5">
-            <h2 className="mb-4 text-primary">🧍 Trang Profile Bệnh Nhân</h2>
+        <div className="container py-2">
+            <h4 className="mb-4 text-primary fw-bold">Hồ sơ cá nhân</h4>
             
-            {/* Hiển thị thông báo lỗi/thành công */}
             {error && <div className="alert alert-danger" role="alert">{error}</div>}
             {successMessage && <div className="alert alert-success" role="alert">{successMessage}</div>}
             
             <div className="row">
                 {/* Cột 1: Avatar */}
                 <div className="col-md-4">
-                    <div className="card shadow-sm p-3 mb-4 text-center">
+                    <div className="card shadow-sm p-3 mb-4 text-center border-0">
                         <img 
                             src={formData.profilePicture} 
                             className="rounded-circle mx-auto mb-3" 
@@ -215,7 +243,7 @@ const PatientProfiles = () => {
                         <button 
                             type="button" 
                             className="btn btn-warning btn-sm"
-                            onClick={() => setIsPasswordModalOpen(true)} // <<< MỞ MODAL
+                            onClick={() => setIsPasswordModalOpen(true)}
                         >
                             Đổi Mật khẩu
                         </button>
@@ -224,47 +252,45 @@ const PatientProfiles = () => {
 
                 {/* Cột 2: Form Cập Nhật */}
                 <div className="col-md-8">
-                    <form onSubmit={handleSubmit} className="card p-4 shadow-sm">
-                        <h4 className="mb-3">Thông tin Cá nhân</h4>
+                    <form onSubmit={handleSubmit} className="card p-4 shadow-sm border-0">
+                        <h5 className="mb-3 text-secondary fw-bold">Thông tin chi tiết</h5>
 
                         <div className="row mb-3">
-                            <div className="col-md-6">
-                                <label className="form-label">Họ tên đầy đủ</label>
+                            <div className="col-md-6 mb-3">
+                                <label className="form-label fw-bold small text-muted">Họ tên đầy đủ</label>
                                 <input type="text" className="form-control" name="fullName" value={formData.fullName} onChange={handleChange} required />
                             </div>
-                            <div className="col-md-6">
-                                <label className="form-label">Email</label>
+                            <div className="col-md-6 mb-3">
+                                <label className="form-label fw-bold small text-muted">Email</label>
                                 <input type="email" className="form-control" name="email" value={formData.email} onChange={handleChange} disabled /> 
                             </div>
-                        </div>
-
-                        <div className="row mb-3">
-                            <div className="col-md-6">
-                                <label className="form-label">Số điện thoại</label>
+                            
+                            <div className="col-md-6 mb-3">
+                                <label className="form-label fw-bold small text-muted">Số điện thoại</label>
                                 <input type="tel" className="form-control" name="phone" value={formData.phone} onChange={handleChange} />
                             </div>
-                            <div className="col-md-6">
-                                <label className="form-label">Thành phố</label>
+                            <div className="col-md-6 mb-3">
+                                <label className="form-label fw-bold small text-muted">Thành phố</label>
                                 <select className="form-select" name="cityId" value={formData.cityId} onChange={handleChange} required>
                                     <option value="">Chọn thành phố...</option>
                                     {dummyCities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
+                            
+                            <div className="col-md-12 mb-3">
+                                <label className="form-label fw-bold small text-muted">Địa chỉ</label>
+                                <input type="text" className="form-control" name="address" value={formData.address} onChange={handleChange} />
+                            </div>
                         </div>
 
-                        <div className="mb-4">
-                            <label className="form-label">Địa chỉ</label>
-                            <input type="text" className="form-control" name="address" value={formData.address} onChange={handleChange} />
-                        </div>
-
-                        <button type="submit" className="btn btn-primary btn-lg" disabled={isLoading}>
+                        <button type="submit" className="btn btn-primary" disabled={isLoading}>
                              {isLoading ? 'Đang lưu...' : 'Cập nhật Thông tin'}
                         </button>
                     </form>
                 </div>
             </div>
             
-            {/* Component Modal Đổi Mật khẩu */}
+            {/* Modal Đổi mật khẩu được import từ file ngoài */}
             <ChangePasswordModal 
                 isModalOpen={isPasswordModalOpen}
                 closeModal={() => setIsPasswordModalOpen(false)}

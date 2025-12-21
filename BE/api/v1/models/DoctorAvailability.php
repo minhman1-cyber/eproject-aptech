@@ -3,130 +3,112 @@ class DoctorAvailability {
     private $conn;
     private $table = 'doctor_availability';
 
+    // Các thuộc tính khớp với bảng database mới
     public $id;
     public $doctor_id;
     public $date;
     public $start_time;
     public $end_time;
-    public $frequency;
-    public $day_of_week;
-    public $repeat_end_date;
-    // day_of_month không được sử dụng trong phiên bản Frontend hiện tại
+    public $is_booked; // 0 hoặc 1
+    public $is_locked; // 0 hoặc 1
 
     public function __construct($db) {
         $this->conn = $db;
     }
 
-    // HÀM MỚI: Lấy tất cả lịch rảnh (availability) cho một ngày cụ thể
-    public function getAvailableSchedule($doctorId, $date, $dayOfWeek) {
-        // Kiểm tra logic để lấy các loại lịch: NONE (cố định), DAILY, WEEKLY
-        $query = "
-            SELECT 
-                start_time, 
-                end_time
-            FROM " . $this->table . "
-            WHERE 
-                doctor_id = :doctor_id
-                AND (
-                    -- Lịch cố định (NONE) vào ngày cụ thể
-                    (frequency = 'NONE' AND date = :date)
-                    -- HOẶC Lịch lặp lại hàng ngày (DAILY)
-                    OR (frequency = 'DAILY' AND (repeat_end_date IS NULL OR repeat_end_date >= :date))
-                    -- HOẶC Lịch lặp lại hàng tuần (WEEKLY)
-                    OR (frequency = 'WEEKLY' 
-                        AND day_of_week = :day_of_week 
-                        AND (repeat_end_date IS NULL OR repeat_end_date >= :date)
-                    )
-                )
-            ORDER BY start_time";
-        
-        $stmt = $this->conn->prepare($query);
+    // ==========================================
+    // 1. LẤY DANH SÁCH SLOT
+    // ==========================================
+    
+    // Lấy tất cả slot của một bác sĩ trong một ngày cụ thể (Dùng cho cả Admin/Doctor/Patient view)
+    public function getSlotsByDate($doctorId, $date) {
+        $query = "SELECT id, start_time, end_time, is_booked, is_locked 
+                  FROM " . $this->table . " 
+                  WHERE doctor_id = :doctor_id 
+                  AND date = :date 
+                  ORDER BY start_time ASC";
 
+        $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':doctor_id', $doctorId);
         $stmt->bindParam(':date', $date);
-        // dayOfWeek là giá trị số (0-6)
-        $stmt->bindParam(':day_of_week', $dayOfWeek);
         
-        if (!$stmt->execute()) {
-             return false;
-        }
+        $stmt->execute();
         return $stmt;
     }
 
-    // Hàm tạo lịch rảnh mới (Dùng cho NONE, DAILY, WEEKLY)
-    public function create() {
-        $query = "INSERT INTO " . $this->table . " 
-                  SET doctor_id = :doctor_id, date = :date, start_time = :start_time, 
-                      end_time = :end_time, frequency = :frequency, day_of_week = :day_of_week, 
-                      repeat_end_date = :repeat_end_date";
-        
-        $stmt = $this->conn->prepare($query);
-
-        // Làm sạch và gán tham số
-        $stmt->bindParam(":doctor_id", $this->doctor_id);
-        $stmt->bindParam(":start_time", $this->start_time);
-        $stmt->bindParam(":end_time", $this->end_time);
-        $stmt->bindParam(":frequency", $this->frequency);
-
-        // Xử lý các trường có thể là NULL (ĐÃ SỬA LỖI 0 thành NULL)
-        
-        // 1. Dùng toán tử ?? (Null Coalescing) thay vì ?: (Elvis) để chỉ kiểm tra null/undefined
-        // Tuy nhiên, vì các thuộc tính này là public properties, chúng ta nên kiểm tra rõ ràng
-        
-        $date = (isset($this->date) && $this->date !== '') ? $this->date : NULL;
-        $day_of_week = (isset($this->day_of_week) && $this->day_of_week !== '') ? $this->day_of_week : NULL;
-        $repeat_end_date = (isset($this->repeat_end_date) && $this->repeat_end_date !== '') ? $this->repeat_end_date : NULL;
-        
-        // Hoặc đơn giản hóa (đã kiểm tra và fix trong Controller)
-        // Dùng ternary operator an toàn hơn
-        $day_of_week_safe = ($this->day_of_week === 0 || $this->day_of_week > 0) ? $this->day_of_week : NULL;
-        $date_safe = $this->date ? $this->date : NULL;
-        $repeat_end_date_safe = $this->repeat_end_date ? $this->repeat_end_date : NULL;
-
-
-        $stmt->bindParam(":date", $date_safe);
-        $stmt->bindParam(":day_of_week", $day_of_week_safe);
-        $stmt->bindParam(":repeat_end_date", $repeat_end_date_safe);
-        
-        // Cần đảm bảo kiểu dữ liệu trong bindParam (PARAM_INT/PARAM_STR/PARAM_NULL)
-        // Vì đây là các tham số, ta dùng PARAM_STR và để MySQL tự ép kiểu, nhưng vẫn cần kiểm tra giá trị.
-        
-        try {
-            return $stmt->execute();
-        } catch (PDOException $e) {
-            // Trong trường hợp lỗi SQL, ném lại exception để Controller xử lý Rollback
-            throw $e; 
-        }
-    }
-
-    // Lấy tất cả lịch rảnh của một bác sĩ
-    public function getAvailabilityByDoctorId($doctorId) {
-        $query = "SELECT * FROM " . $this->table . " WHERE doctor_id = :doctor_id ORDER BY id DESC";
-        $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':doctor_id', $doctorId);
-        
-        if (!$stmt->execute()) {
-             return false;
-        }
-        return $stmt; // Trả về statement
-    }
-
-    // Lấy lịch rảnh theo ID (dùng để kiểm tra quyền xóa)
+    // Lấy slot theo ID (Dùng để kiểm tra trước khi xóa hoặc đặt lịch)
     public function getById($id) {
-        $query = "SELECT doctor_id FROM " . $this->table . " WHERE id = :id LIMIT 1";
+        $query = "SELECT * FROM " . $this->table . " WHERE id = :id LIMIT 1";
+        
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':id', $id);
         
-        if (!$stmt->execute()) {
-             return false;
-        }
+        $stmt->execute();
         return $stmt;
     }
 
-    // Xóa lịch rảnh
+    // ==========================================
+    // 2. THÊM / SỬA / XÓA
+    // ==========================================
+
+    // Tạo một slot đơn lẻ (Ít dùng nếu dùng batch, nhưng vẫn cần cho các case đặc biệt)
+    public function create() {
+        $query = "INSERT INTO " . $this->table . " 
+                  SET doctor_id = :doctor_id, 
+                      date = :date, 
+                      start_time = :start_time, 
+                      end_time = :end_time, 
+                      is_booked = 0, 
+                      is_locked = 0";
+        
+        $stmt = $this->conn->prepare($query);
+
+        // Sanitize
+        $this->doctor_id  = htmlspecialchars(strip_tags($this->doctor_id));
+        $this->date       = htmlspecialchars(strip_tags($this->date));
+        $this->start_time = htmlspecialchars(strip_tags($this->start_time));
+        $this->end_time   = htmlspecialchars(strip_tags($this->end_time));
+
+        // Bind
+        $stmt->bindParam(":doctor_id", $this->doctor_id);
+        $stmt->bindParam(":date", $this->date);
+        $stmt->bindParam(":start_time", $this->start_time);
+        $stmt->bindParam(":end_time", $this->end_time);
+
+        return $stmt->execute();
+    }
+
+    // Xóa slot (Chỉ xóa được nếu chưa ai đặt - Logic kiểm tra nên nằm ở Controller)
     public function delete($id) {
         $query = "DELETE FROM " . $this->table . " WHERE id = :id";
+        
         $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(":id", $id);
+        
+        return $stmt->execute();
+    }
+
+    // ==========================================
+    // 3. CẬP NHẬT TRẠNG THÁI (Booking / Locking)
+    // ==========================================
+
+    // Cập nhật trạng thái đặt chỗ (Book/Unbook)
+    public function updateBookingStatus($id, $status) {
+        $query = "UPDATE " . $this->table . " SET is_booked = :status WHERE id = :id";
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(":status", $status); // 0 hoặc 1
+        $stmt->bindParam(":id", $id);
+        
+        return $stmt->execute();
+    }
+
+    // Khóa/Mở khóa slot (Cho Admin/Doctor nghỉ đột xuất)
+    public function toggleLock($id, $status) {
+        $query = "UPDATE " . $this->table . " SET is_locked = :status WHERE id = :id";
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(":status", $status); // 0 hoặc 1
         $stmt->bindParam(":id", $id);
         
         return $stmt->execute();

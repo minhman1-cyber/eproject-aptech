@@ -52,37 +52,30 @@ try {
     require_once '../config/database.php';
     require_once '../models/Appointment.php'; 
     require_once '../models/Patient.php'; 
+    require_once '../models/DoctorAvailability.php'; // Load thêm Model Availability
+    
     $database = new Database();
     $db = $database->getConnection();
     if (!$db) { throw new Exception("Lỗi kết nối database."); }
 
     $appointmentModel = new Appointment($db);
     $patientModel = new Patient($db);
+    $availabilityModel = new DoctorAvailability($db); // Khởi tạo
 
 } catch (Exception $e) {
     debug_exit($e);
 }
 
 // ===================================
-// KIỂM TRA SESSION (PATIENT)
+// KIỂM TRA SESSION & QUYỀN
 // ===================================
-// if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'PATIENT') {
-//     http_response_code(401);
-//     echo json_encode(["message" => "Truy cập bị từ chối. Vui lòng đăng nhập với vai trò Bệnh nhân."]);
-//     exit();
-// }
-
-if (
-    !isset($_SESSION['user_id']) ||
-    !in_array($_SESSION['user_role'], ['ADMIN', 'PATIENT'])
-) {
-    
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_role'], ['ADMIN', 'PATIENT'])) {
     http_response_code(401);
     echo json_encode(["message" => "Truy cập bị từ chối. Vai trò không hợp lệ."]);
     exit();
 }
 
-
+// Xử lý xác định Patient ID dựa trên Role
 $patientIds = $_SESSION['user_id']; 
 $patientId = $patientIds;
 
@@ -92,19 +85,11 @@ if ($_SESSION['user_role'] === 'PATIENT') {
         http_response_code(404);
         throw new Exception("Không tìm thấy hồ sơ Patient tương ứng. Vui lòng cập nhật hồ sơ cá nhân.");
     }
-}else if ($_SESSION['user_role'] === 'ADMIN') {
+} else if ($_SESSION['user_role'] === 'ADMIN') {
     $payload = json_decode(file_get_contents("php://input"), true);
-
-    if (!isset($payload['id'])) {
-        http_response_code(400);
-        echo json_encode(["message" => "Admin cần cung cấp patientId trong payload."]);
-        exit();
-    }
-
-    $patientIds = $payload['id'];
-
-    $patientId = $patientIds;
-    
+    // Với Admin, có thể không cần check patientId sở hữu nếu chỉ thao tác dựa trên appointmentId,
+    // nhưng nếu cần validate logic thì có thể giữ nguyên. 
+    // Ở đây ta tạm thời ưu tiên lấy ID từ DB của appointment.
 }
 
 // ===================================
@@ -116,7 +101,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
     $appointmentId = $data['id'] ?? null;
     $actionType = $data['actionType'] ?? null; // 'CANCEL' hoặc 'RESCHEDULE'
     
-
     if (empty($appointmentId) || empty($actionType)) {
         http_response_code(400);
         echo json_encode(["message" => "Thiếu ID lịch hẹn hoặc loại hành động."]);
@@ -126,28 +110,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
     try {
         $db->beginTransaction();
 
-        // 1. Kiểm tra quyền sở hữu (Bắt buộc)
-        $appointmentDetails = $appointmentModel->getAppointmentDetails($appointmentId); // Giả định hàm này trả về chi tiết lịch
-        if (!$appointmentDetails || ((int)$appointmentDetails['patient_id'] !== (int)$patientId && $_SESSION['user_role'] !== 'ADMIN' )) {
+        // 1. Kiểm tra quyền sở hữu & Lấy thông tin hiện tại
+        $appointmentDetails = $appointmentModel->getAppointmentDetails($appointmentId); 
+        
+        if (!$appointmentDetails) {
+            http_response_code(404);
+            throw new Exception("Không tìm thấy lịch hẹn.");
+        }
+
+        // Nếu là Patient thì phải đúng là người đặt
+        if ($_SESSION['user_role'] === 'PATIENT' && (int)$appointmentDetails['patient_id'] !== (int)$patientId) {
              http_response_code(403);
-             throw new Exception("Bạn không có quyền thực hiện thao tác này.");
+             throw new Exception("Bạn không có quyền thực hiện thao tác trên lịch hẹn này.");
         }
         
         $message = "";
         
+        // ==================================================================
+        // CASE 1: HỦY LỊCH (CANCEL)
+        // ==================================================================
         if ($actionType === 'CANCEL') {
-            // 2. Xử lý HỦY LỊCH
             if ($appointmentDetails['status'] !== 'BOOKED' && $appointmentDetails['status'] !== 'RESCHEDULED') {
                  throw new Exception("Lịch hẹn không thể hủy (Trạng thái hiện tại: {$appointmentDetails['status']}).");
             }
 
+            // A. Cập nhật trạng thái Appointment -> CANCELLED
             if (!$appointmentModel->updateStatus($appointmentId, 'CANCELLED')) {
                  throw new Exception("Lỗi khi cập nhật trạng thái hủy lịch.");
             }
-            $message = "Hủy lịch hẹn thành công!";
+
+            // B. Mở lại Slot trong bảng doctor_availability (is_booked = 0)
+            $slotQuery = "SELECT id FROM doctor_availability 
+                          WHERE doctor_id = :doctor_id 
+                          AND date = :date 
+                          AND start_time = :time 
+                          LIMIT 1";
+            $slotStmt = $db->prepare($slotQuery);
+            $slotStmt->bindParam(':doctor_id', $appointmentDetails['doctor_id']);
+            $slotStmt->bindParam(':date', $appointmentDetails['appointment_date']);
+            $slotStmt->bindParam(':time', $appointmentDetails['appointment_time']);
+            $slotStmt->execute();
             
+            if ($slotId = $slotStmt->fetchColumn()) {
+                $availabilityModel->updateBookingStatus($slotId, 0);
+            }
+
+            $message = "Hủy lịch hẹn thành công! Slot khám đã được mở lại.";
+            
+        // ==================================================================
+        // CASE 2: ĐỔI LỊCH (RESCHEDULE)
+        // ==================================================================
         } elseif ($actionType === 'RESCHEDULE') {
-            // 3. Xử lý ĐỔI LỊCH
             $newDate = $data['newDate'] ?? null;
             $newTime = $data['newTime'] ?? null;
             
@@ -156,17 +169,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
                 throw new Exception("Thiếu Ngày hoặc Giờ mới để đổi lịch.");
             }
 
-            // Kiểm tra trùng lặp cho slot mới
-            $newTimeFormatted = $newTime . ':00';
-            if ($appointmentModel->isSlotBooked($appointmentDetails['doctor_id'], $newDate, $newTimeFormatted)) {
+            // Chuẩn hóa giờ
+            $newTimeFormatted = date('H:i:s', strtotime($newTime));
+
+            // A. Kiểm tra Slot MỚI có rảnh không
+            $newSlotQuery = "SELECT id, is_booked, is_locked FROM doctor_availability 
+                             WHERE doctor_id = :doctor_id 
+                             AND date = :date 
+                             AND start_time = :start_time 
+                             LIMIT 1 FOR UPDATE";
+            $newSlotStmt = $db->prepare($newSlotQuery);
+            $newSlotStmt->bindParam(':doctor_id', $appointmentDetails['doctor_id']);
+            $newSlotStmt->bindParam(':date', $newDate);
+            $newSlotStmt->bindParam(':start_time', $newTimeFormatted);
+            $newSlotStmt->execute();
+            
+            $newSlot = $newSlotStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Nếu không tìm thấy slot hoặc slot đã bị khóa/đặt
+            if (!$newSlot || (int)$newSlot['is_booked'] === 1 || (int)$newSlot['is_locked'] === 1) {
                 http_response_code(409); // Conflict
-                throw new Exception("Khung giờ mới này đã có người đặt.");
+                throw new Exception("Khung giờ mới này không khả dụng (đã có người đặt hoặc bác sĩ nghỉ).");
+            }
+
+            // B. Khóa Slot MỚI (is_booked = 1)
+            if (!$availabilityModel->updateBookingStatus($newSlot['id'], 1)) {
+                throw new Exception("Lỗi khi giữ chỗ khung giờ mới.");
+            }
+
+            // C. Mở khóa Slot CŨ (is_booked = 0)
+            $oldSlotQuery = "SELECT id FROM doctor_availability 
+                             WHERE doctor_id = :doctor_id 
+                             AND date = :date 
+                             AND start_time = :time 
+                             LIMIT 1";
+            $oldSlotStmt = $db->prepare($oldSlotQuery);
+            $oldSlotStmt->bindParam(':doctor_id', $appointmentDetails['doctor_id']);
+            $oldSlotStmt->bindParam(':date', $appointmentDetails['appointment_date']);
+            $oldSlotStmt->bindParam(':time', $appointmentDetails['appointment_time']);
+            $oldSlotStmt->execute();
+
+            if ($oldSlotId = $oldSlotStmt->fetchColumn()) {
+                $availabilityModel->updateBookingStatus($oldSlotId, 0);
             }
             
-            // Thực hiện đổi lịch
+            // D. Cập nhật Appointment với ngày giờ mới
             if (!$appointmentModel->reschedule($appointmentId, $newDate, $newTimeFormatted)) {
                 throw new Exception("Lỗi khi cập nhật thời gian đổi lịch.");
             }
+
             $message = "Đổi lịch hẹn thành công!";
             
         } else {
@@ -182,13 +233,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
 
     } catch (Exception $e) {
         if ($db->inTransaction()) { $db->rollback(); }
-        // Lỗi này sẽ gọi hàm debug_exit và in ra message/exception
+        
+        // Trả về lỗi 409 nếu conflict slot
+        if ($e->getCode() === 409) {
+            http_response_code(409);
+        }
+        
         debug_exit($e);
     }
 }
 
 // ===================================
-// DEFAULT — METHOD NOT ALLOWED
+// DEFAULT
 // ===================================
 http_response_code(405);
 echo json_encode(["message" => "Method không được hỗ trợ."]);

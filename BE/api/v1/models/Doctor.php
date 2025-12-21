@@ -26,6 +26,107 @@ class Doctor {
         $this->conn = $db;
     }
 
+    public function createAvailabilityBatch($doctorId, $startDate, $endDate, $daysOfWeek, $startTime, $endTime, $durationMinutes = 30) {
+        $start = new DateTime($startDate);
+        $end = new DateTime($endDate);
+        
+        // Validation cơ bản
+        if ($start > $end) {
+            return false;
+        }
+
+        // Chuẩn bị câu lệnh SQL insert nhiều dòng
+        $sql = "INSERT INTO " . $this->availability_table . " 
+                (doctor_id, date, start_time, end_time) VALUES ";
+        
+        $values = [];
+        $params = [];
+        $current = clone $start;
+        $idx = 0;
+
+        // 1. Vòng lặp qua từng NGÀY trong khoảng thời gian (startDate -> endDate)
+        while ($current <= $end) {
+            $wDay = (int)$current->format('w'); // 0 (Sun) -> 6 (Sat)
+            
+            // Chỉ tạo lịch nếu ngày đó (thứ đó) nằm trong danh sách bác sĩ chọn
+            if (in_array($wDay, $daysOfWeek)) {
+                $dateStr = $current->format('Y-m-d');
+
+                // 2. LOGIC CẮT NHỎ THỜI GIAN (Time Slicing)
+                // Bắt đầu từ giờ mở cửa (ví dụ 08:00)
+                $slotStart = new DateTime($dateStr . ' ' . $startTime);
+                $shiftEnd  = new DateTime($dateStr . ' ' . $endTime);
+
+                // Lặp trong ngày để cắt thành từng miếng nhỏ (Slot)
+                while ($slotStart < $shiftEnd) {
+                    // Tính giờ kết thúc của slot này (start + duration)
+                    $slotEnd = clone $slotStart;
+                    $slotEnd->modify("+{$durationMinutes} minutes");
+
+                    // Nếu slot vượt quá giờ nghỉ thì dừng lại (không tạo slot bị cắt dở)
+                    if ($slotEnd > $shiftEnd) {
+                        break;
+                    }
+
+                    // Format giờ để lưu DB
+                    $sTime = $slotStart->format('H:i:s');
+                    $eTime = $slotEnd->format('H:i:s');
+
+                    // Thêm placeholder vào query
+                    $values[] = "(:doc_id_{$idx}, :date_{$idx}, :start_{$idx}, :end_{$idx})";
+                    
+                    // Thêm giá trị vào mảng params
+                    $params[":doc_id_{$idx}"] = $doctorId;
+                    $params[":date_{$idx}"] = $dateStr;
+                    $params[":start_{$idx}"] = $sTime;
+                    $params[":end_{$idx}"] = $eTime;
+                    
+                    $idx++;
+
+                    // Nhảy tới slot tiếp theo (Slot tiếp theo bắt đầu ngay khi slot trước kết thúc)
+                    $slotStart = $slotEnd;
+                }
+            }
+            
+            // Tăng biến ngày lên 1 để check ngày tiếp theo
+            $current->modify('+1 day');
+        }
+
+        // Nếu không có slot nào được tạo (do không chọn ngày phù hợp hoặc lỗi logic)
+        if (empty($values)) {
+            return true;
+        }
+
+        // 3. Thực thi Insert vào Database
+        // Nối các placeholder lại: VALUES (?,?,?,?), (?,?,?,?)...
+        $sql .= implode(', ', $values);
+        
+        $stmt = $this->conn->prepare($sql);
+        
+        // Bind toàn bộ tham số
+        foreach ($params as $key => $val) {
+            $stmt->bindValue($key, $val);
+        }
+        
+        return $stmt->execute();
+    }
+    
+    // Hàm hỗ trợ: Xóa lịch cũ (Clean up) trước khi tạo mới (chỉ xóa slot chưa ai đặt)
+    public function clearAvailability($doctorId, $startDate, $endDate) {
+        $query = "DELETE FROM " . $this->availability_table . " 
+                  WHERE doctor_id = :doctor_id 
+                  AND date BETWEEN :start_date AND :end_date
+                  AND is_booked = 0 
+                  AND is_locked = 0"; // Chỉ xóa các lịch RẢNH (chưa book, chưa lock)
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':doctor_id', $doctorId);
+        $stmt->bindParam(':start_date', $startDate);
+        $stmt->bindParam(':end_date', $endDate);
+        
+        return $stmt->execute();
+    }
+
      // Hàm mới: Lấy tất cả Bác sĩ đã được duyệt (Cho Patient duyệt)
     // Hàm mới: Lấy tất cả Bác sĩ đã được duyệt (Cho Patient duyệt) - ĐÃ SỬA LỖI 1055
     public function getAllApprovedDoctors2() {
@@ -183,9 +284,7 @@ class Doctor {
 
     // Hàm tìm kiếm Bác sĩ có lịch rảnh (ĐÃ SỬA)
     public function searchAvailableDoctors($cityId, $specializationId, $appointmentDate) {
-        // Lấy ngày trong tuần (0=Sun, 1=Mon, ..., 6=Sat) từ ngày yêu cầu
-        $dayOfWeek = date('w', strtotime($appointmentDate));
-        
+        // Cập nhật query search để khớp với bảng availability mới (chỉ check date và is_booked)
         $query = "
             SELECT 
                 u.id as user_id, 
@@ -201,19 +300,12 @@ class Doctor {
                 AND u.city_id = :city_id
                 AND ds.specialization_id = :specialization_id
                 
-                -- KIỂM TRA LỊCH RẢNH: Bác sĩ phải có lịch rảnh vào ngày này
+                -- LOGIC MỚI: Chỉ cần check xem ngày đó có slot nào rảnh không
                 AND d.id IN (
                     SELECT da.doctor_id FROM " . $this->availability_table . " da
-                    WHERE 
-                        -- Lịch cố định (NONE) vào ngày cụ thể
-                        (da.frequency = 'NONE' AND da.date = :appointment_date)
-                        -- HOẶC Lịch lặp lại hàng ngày (DAILY)
-                        OR (da.frequency = 'DAILY' AND (da.repeat_end_date IS NULL OR da.repeat_end_date >= :appointment_date))
-                        -- HOẶC Lịch lặp lại hàng tuần (WEEKLY) vào ngày trong tuần yêu cầu
-                        OR (da.frequency = 'WEEKLY' 
-                            AND da.day_of_week = :day_of_week 
-                            AND (da.repeat_end_date IS NULL OR da.repeat_end_date >= :appointment_date)
-                        )
+                    WHERE da.date = :appointment_date 
+                    AND da.is_booked = 0  
+                    AND da.is_locked = 0  
                 )
             GROUP BY u.id
             ORDER BY u.id DESC";
@@ -223,7 +315,6 @@ class Doctor {
         $stmt->bindParam(':city_id', $cityId);
         $stmt->bindParam(':specialization_id', $specializationId);
         $stmt->bindParam(':appointment_date', $appointmentDate);
-        $stmt->bindParam(':day_of_week', $dayOfWeek);
 
         $stmt->execute();
         return $stmt;
@@ -480,5 +571,29 @@ class Doctor {
         $stmt->bindParam(":id", $qualId);
 
         return $stmt->execute();
+    }
+
+    // ============================================
+    // HÀM MỚI: XÓA BẰNG CẤP (Theo yêu cầu)
+    // ============================================
+    public function deleteQualification($qualId, $doctorId) {
+        // 1. Kiểm tra xem bằng cấp này có tồn tại và thuộc về bác sĩ này không (Bảo mật)
+        $checkQuery = "SELECT id FROM doctor_qualifications WHERE id = :id AND doctor_id = :doctor_id LIMIT 1";
+        $checkStmt = $this->conn->prepare($checkQuery);
+        $checkStmt->bindParam(':id', $qualId);
+        $checkStmt->bindParam(':doctor_id', $doctorId);
+        $checkStmt->execute();
+
+        if ($checkStmt->rowCount() === 0) {
+            // Không tìm thấy hoặc ID bác sĩ không khớp
+            return false;
+        }
+
+        // 2. Thực hiện xóa
+        $delQuery = "DELETE FROM doctor_qualifications WHERE id = :id";
+        $delStmt = $this->conn->prepare($delQuery);
+        $delStmt->bindParam(':id', $qualId);
+
+        return $delStmt->execute();
     }
 }

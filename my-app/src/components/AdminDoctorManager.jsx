@@ -622,7 +622,6 @@ const AdminDoctorManager = () => {
     // ------------------- RENDER -------------------
     return (
         <div className="container py-5">
-            <h2 className="mb-4 text-primary">Quản lý Bác sĩ (Admin Panel)</h2>
 
             {/* Thông báo lỗi/thành công */}
             {error && <div className="alert alert-danger" role="alert">{error}</div>}

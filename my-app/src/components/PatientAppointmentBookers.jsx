@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import DoctorProfileView from './DoctorProfileView';
 
-
-// URL API Backend (Giả định)
+// URL API Backend
 const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
 const API_SEARCH_DOCTORS_URL = API_BASE_URL + 'patient_doctor_search.php'; 
 const API_AVAILABILITY_URL = API_BASE_URL + 'doctor_availability_view.php'; 
 const API_BOOKING_URL = API_BASE_URL + 'book_appointment.php'; 
 const API_REFERENCE_DATA_URL = API_BASE_URL + 'reference_data.php'; 
-const API_ALL_DOCTORS_URL = API_BASE_URL + 'patient_all_doctors.php'; // API MỚI: Lấy tất cả bác sĩ
+const API_ALL_DOCTORS_URL = API_BASE_URL + 'patient_all_doctors.php'; 
 
-const ITEMS_PER_PAGE = 10; // Cấu hình phân trang
+const ITEMS_PER_PAGE = 10; 
 
 // =======================================================
 // COMPONENT PHỤ: MODAL CHỌN NGÀY THỦ CÔNG
@@ -25,7 +24,7 @@ const DatePickerModal = ({ isOpen, currentDate, setDate, closeModal }) => {
     const handleConfirm = (e) => {
         e.preventDefault();
         if (selectedManualDate) {
-            setDate(selectedManualDate); // Cập nhật searchParams.appointmentDate
+            setDate(selectedManualDate); 
             closeModal();
         }
     };
@@ -33,12 +32,12 @@ const DatePickerModal = ({ isOpen, currentDate, setDate, closeModal }) => {
     if (!isOpen) return null;
 
     return (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-            <div className="modal-dialog modal-sm">
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }} tabIndex="-1">
+            <div className="modal-dialog modal-sm modal-dialog-centered">
                 <div className="modal-content">
                     <form onSubmit={handleConfirm}>
                         <div className="modal-header bg-primary text-white">
-                            <h5 className="modal-title">Chọn Ngày Khám</h5>
+                            <h5 className="modal-title h6">Chọn Ngày Khám</h5>
                             <button type="button" className="btn-close btn-close-white" onClick={closeModal}></button>
                         </div>
                         <div className="modal-body">
@@ -53,8 +52,8 @@ const DatePickerModal = ({ isOpen, currentDate, setDate, closeModal }) => {
                             />
                         </div>
                         <div className="modal-footer">
-                            <button type="button" className="btn btn-secondary" onClick={closeModal}>Hủy</button>
-                            <button type="submit" className="btn btn-primary">Xác nhận</button>
+                            <button type="button" className="btn btn-sm btn-secondary" onClick={closeModal}>Hủy</button>
+                            <button type="submit" className="btn btn-sm btn-primary">Xác nhận</button>
                         </div>
                     </form>
                 </div>
@@ -65,18 +64,18 @@ const DatePickerModal = ({ isOpen, currentDate, setDate, closeModal }) => {
 
 
 const PatientAppointmentBookers = () => {
-    // Chỉ giữ lại cityId và specializationId trong state tìm kiếm ban đầu
+    // State tìm kiếm ban đầu
     const initialSearchState = {
         cityId: '',
         specializationId: '',
-        appointmentDate: '', // Vẫn giữ để sử dụng trong Bước 2 & 3
+        appointmentDate: '', 
     };
     
     const [step, setStep] = useState(1); 
     const [searchParams, setSearchParams] = useState(initialSearchState);
-    const [doctorsList, setDoctorsList] = useState([]); // Kết quả tìm kiếm chính (đã lọc lịch rảnh)
-    const [allDoctors, setAllDoctors] = useState([]); // Toàn bộ danh sách bác sĩ (để hiển thị/duyệt)
-    const [availableTimes, setAvailableTimes] = useState([]); 
+    const [doctorsList, setDoctorsList] = useState([]); // Kết quả tìm kiếm
+    const [allDoctors, setAllDoctors] = useState([]); // Danh sách tất cả bác sĩ
+    const [availableTimes, setAvailableTimes] = useState([]); // Danh sách Slot rảnh
     
     const [selectedDoctor, setSelectedDoctor] = useState(null);
     const [selectedTime, setSelectedTime] = useState('');
@@ -89,15 +88,15 @@ const PatientAppointmentBookers = () => {
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
     
-    // State phân trang và tìm kiếm cho "Duyệt tất cả"
+    // Phân trang và tìm kiếm cho "Duyệt tất cả"
     const [allSearchTerm, setAllSearchTerm] = useState('');
     const [allCurrentPage, setAllCurrentPage] = useState(1);
     
-    // State mới cho Modal chọn ngày
+    // Modal chọn ngày
     const [isDatePickerModalOpen, setIsDatePickerModalOpen] = useState(false);
 
 
-    // Hàm gọi API FETCH chung (Giữ nguyên)
+    // Hàm gọi API FETCH chung
     const fetchApi = useCallback(async (url, options) => {
         const response = await fetch(url, {
             ...options,
@@ -137,10 +136,9 @@ const PatientAppointmentBookers = () => {
                 setAllCities(refData.data.cities || []);
                 setAllSpecializations(refData.data.specializations || []);
                 
-                // Tải TẤT CẢ Bác sĩ (API mới)
+                // Tải TẤT CẢ Bác sĩ
                 const allDocData = await fetchApi(API_ALL_DOCTORS_URL, { method: 'GET' });
                 
-                // Chuẩn hóa dữ liệu chuyên khoa (từ chuỗi/số thành mảng số nguyên)
                 const mappedDoctors = (allDocData.data.doctors || []).map(doc => {
                     const raw = doc.specializationIds ?? doc.specializationId ?? null;
                     let specializationIds = [];
@@ -174,7 +172,6 @@ const PatientAppointmentBookers = () => {
     // ------------------- BƯỚC 1: TÌM KIẾM BÁC SĨ -------------------
 
     const handleSearchChange = (e) => {
-        // Cho phép thay đổi tất cả các trường
         setSearchParams(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
@@ -184,7 +181,6 @@ const PatientAppointmentBookers = () => {
         setSuccessMessage(null);
         setIsLoading(true);
 
-        // KIỂM TRA TẤT CẢ 3 TIÊU CHÍ (BẮT BUỘC CHO TÌM KIẾM CHÍNH)
         const { cityId, specializationId, appointmentDate } = searchParams;
         if (!cityId || !specializationId || !appointmentDate) {
             setError("Vui lòng chọn Thành phố, Chuyên khoa và Ngày khám.");
@@ -193,14 +189,11 @@ const PatientAppointmentBookers = () => {
         }
 
         try {
-            // API chỉ trả về bác sĩ có lịch rảnh khớp
             const data = await fetchApi(API_SEARCH_DOCTORS_URL, {
                 method: 'POST',
-                // Gửi tất cả 3 tiêu chí: cityId, specializationId, appointmentDate
                 body: JSON.stringify(searchParams) 
             });
             
-            // Lọc kết quả tìm kiếm API với dữ liệu đầy đủ từ allDoctors
             const resultDoctors = (data.data.doctors || []).map(apiDoc => {
                 const fullData = allDoctors.find(d => d.doctor_id === apiDoc.doctor_id);
                 return fullData || apiDoc; 
@@ -215,7 +208,7 @@ const PatientAppointmentBookers = () => {
         }
     };
     
-    // ------------------- LOGIC TẢI LỊCH RẢNH -------------------
+    // ------------------- LOGIC TẢI LỊCH RẢNH (UPDATED FOR SLOTS) -------------------
 
     const fetchAvailability = useCallback(async (doctorId, date) => {
         if (!doctorId || !date) return;
@@ -235,11 +228,15 @@ const PatientAppointmentBookers = () => {
                 body: JSON.stringify(payload)
             });
             
-            // Giả lập slot 30 phút nếu API chỉ trả về danh sách giờ bắt đầu
+            // Xử lý dữ liệu trả về từ API mới (Slot-based)
             const rawTimes = data.data.availableTimes || [];
-            const slots = rawTimes.map(time => ({
-                time: time.time || time, // Giả sử time là chuỗi HH:MM
-                isBooked: time.isBooked || false 
+            
+            // Map dữ liệu để hiển thị
+            const slots = rawTimes.map(slot => ({
+                id: slot.id,
+                time: slot.time,        // Giờ bắt đầu (VD: 08:00)
+                endTime: slot.endTime,  // Giờ kết thúc (VD: 08:30)
+                isBooked: slot.isBooked // Trạng thái
             }));
 
             setAvailableTimes(slots);
@@ -252,18 +249,16 @@ const PatientAppointmentBookers = () => {
         }
     }, [fetchApi]);
 
-    // Effect để tải lịch rảnh khi chuyển sang Bước 2 HOẶC ngày khám thay đổi
+    // Tự động tải lịch khi ở bước 2 hoặc ngày thay đổi
     useEffect(() => {
         if (step === 2 && selectedDoctor && searchParams.appointmentDate) {
             fetchAvailability(selectedDoctor.doctor_id, searchParams.appointmentDate);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [step, selectedDoctor, searchParams.appointmentDate]); 
+    }, [step, selectedDoctor, searchParams.appointmentDate, fetchAvailability]); 
 
     
     // ------------------- BƯỚC 2: CHỌN BÁC SĨ VÀ CHUYỂN BƯỚC -------------------
     
-    // HÀM SỬA ĐỔI: Chỉ cần doctor object
     const handleDoctorSelect = (doctor) => {
         setSelectedDoctor(doctor);
         setSelectedTime(''); 
@@ -271,11 +266,9 @@ const PatientAppointmentBookers = () => {
         setError(null);
         setSuccessMessage(null);
 
-        // Thiết lập ngày khám mặc định là hôm nay khi chuyển sang bước 2 (Nếu chưa có ngày)
         const today = new Date().toISOString().split('T')[0];
         setSearchParams(prev => ({
             ...prev,
-            // CHỈ SET NGÀY HÔM NAY NẾU CHƯA CÓ NGÀY NÀO ĐƯỢC CHỌN TRONG FORM
             appointmentDate: prev.appointmentDate || today, 
             cityId: String(doctor.cityId),
             specializationId: String(doctor.specializationId),
@@ -284,13 +277,12 @@ const PatientAppointmentBookers = () => {
         setStep(2);
     };
 
-    // Hàm set ngày từ Modal (gọi sau khi chọn ngày trong Modal)
     const handleSetAppointmentDate = (dateString) => {
         setSearchParams(prev => ({
             ...prev,
             appointmentDate: dateString,
         }));
-        setIsDatePickerModalOpen(false); // Đóng modal sau khi chọn
+        setIsDatePickerModalOpen(false); 
     };
 
     // ------------------- BƯỚC 3: XÁC NHẬN ĐẶT LỊCH -------------------
@@ -306,11 +298,11 @@ const PatientAppointmentBookers = () => {
         
         setIsLoading(true);
 
-        // Payload đặt lịch
+        // Payload gửi lên API Book (khớp với backend)
         const payload = {
             doctorId: selectedDoctor.doctor_id,
             appointmentDate: searchParams.appointmentDate,
-            appointmentTime: selectedTime,
+            appointmentTime: selectedTime, // Backend sẽ dùng giờ này để tìm và lock slot
             reason: reason,
         };
 
@@ -321,7 +313,7 @@ const PatientAppointmentBookers = () => {
             });
 
             setSuccessMessage(data.message || "Đặt lịch hẹn thành công!");
-            setStep(3); // Chuyển sang màn hình xác nhận cuối cùng
+            setStep(3); // Chuyển sang màn hình thành công
         } catch (err) {
             setError(err.message);
         } finally {
@@ -346,7 +338,7 @@ const PatientAppointmentBookers = () => {
 
     const handleAllSearch = (e) => {
         e.preventDefault();
-        setAllCurrentPage(1); // Reset trang khi tìm kiếm
+        setAllCurrentPage(1); 
     };
 
 
@@ -380,7 +372,7 @@ const PatientAppointmentBookers = () => {
                         
                         <div className="mb-3">
                             <span className="badge bg-secondary me-2">
-                                Chuyên khoa: {specNames.length > 0 ? specNames.join(', ') : 'N/A'}
+                                {specNames.length > 0 ? specNames.join(', ') : 'N/A'}
                             </span>
                             <span className="badge bg-light text-dark border">Thành phố: {cityName || 'N/A'}</span>
                         </div>
@@ -405,7 +397,6 @@ const PatientAppointmentBookers = () => {
         <div className="mt-5 pt-4 border-top">
             <h5 className="text-primary mb-3">Duyệt tất cả Bác sĩ có sẵn</h5>
             
-            {/* Thanh Tìm kiếm Tên Bác sĩ */}
             <form onSubmit={handleAllSearch} className="d-flex mb-3">
                 <input 
                     type="text" 
@@ -419,7 +410,6 @@ const PatientAppointmentBookers = () => {
                 </button>
             </form>
 
-            {/* Danh sách Bác sĩ và Phân trang */}
             {isLoading && allDoctors.length === 0 ? (
                 <p className="text-center text-primary">Đang tải danh sách bác sĩ...</p>
             ) : filteredAllDoctors.length === 0 ? (
@@ -430,14 +420,12 @@ const PatientAppointmentBookers = () => {
                         {currentAllDoctors.map(doctor => renderDoctorCard(doctor))}
                     </div>
 
-                    {/* Phân trang */}
                     <div className="d-flex justify-content-center mt-3">
                         <nav>
                             <ul className="pagination mb-0">
                                 <li className={`page-item ${allCurrentPage === 1 ? 'disabled' : ''}`}>
                                     <button className="page-link" onClick={() => setAllCurrentPage(Math.max(1, allCurrentPage - 1))}>Trước</button>
                                 </li>
-                                {/* Render các nút trang */}
                                 {[...Array(totalAllPages)].map((_, index) => (
                                     <li key={index} className={`page-item ${allCurrentPage === index + 1 ? 'active' : ''}`}>
                                         <button className="page-link" onClick={() => setAllCurrentPage(index + 1)}>
@@ -458,12 +446,10 @@ const PatientAppointmentBookers = () => {
 
     const renderStepContent = () => {
         if (step === 1) {
-            // --- BƯỚC 1: TÌM KIẾM VÀ CHỌN BÁC SĨ ---
             return (
                 <div className="card p-4 shadow-sm">
                     <h5 className="text-info mb-3">1. Tìm kiếm Bác sĩ theo tiêu chí</h5>
                     <form onSubmit={handleSearchSubmit}>
-                        {/* Lựa chọn Tìm kiếm */}
                         <div className="row mb-3">
                             <div className="col-md-4 mb-3">
                                 <label className="form-label">Thành phố (*)</label>
@@ -496,13 +482,12 @@ const PatientAppointmentBookers = () => {
                         </button>
                     </form>
 
-                    {/* Kết quả Tìm kiếm Lịch Rảnh */}
                     <div className="mt-4">
-                        <h6>Kết quả tìm kiếm Bác sĩ có lịch rảnh khớp ({doctorsList.length} bác sĩ)</h6>
+                        <h6>Kết quả tìm kiếm ({doctorsList.length} bác sĩ)</h6>
                         {isLoading ? (
                             <p className="text-center text-primary">Đang tải...</p>
                         ) : doctorsList.length === 0 && searchParams.cityId ? (
-                            <p className="alert alert-warning">Không tìm thấy Bác sĩ có lịch rảnh khớp với tiêu chí trên.</p>
+                            <p className="alert alert-warning">Không tìm thấy Bác sĩ phù hợp.</p>
                         ) : doctorsList.length > 0 ? (
                             <div className="row">
                                 {doctorsList.map(doctor => renderDoctorCard(doctor))}
@@ -510,14 +495,11 @@ const PatientAppointmentBookers = () => {
                         ) : null}
                     </div>
                     
-                    {/* Phần duyệt TẤT CẢ Bác sĩ */}
                     {renderAllDoctorsSection()}
                 </div>
             );
         } else if (step === 2) {
-            // --- BƯỚC 2: CHỌN NGÀY VÀ KHUNG GIỜ ---
-            
-            // Hàm tiện ích để lấy tên thứ/ngày
+            // --- BƯỚC 2: CHỌN NGÀY VÀ KHUNG GIỜ (SLOTS) ---
             const getNextSevenDays = () => {
                 const dates = [];
                 for (let i = 0; i < 7; i++) {
@@ -526,24 +508,16 @@ const PatientAppointmentBookers = () => {
                     const dateString = targetDate.toISOString().split('T')[0];
                     const dayName = targetDate.toLocaleDateString('vi-VN', { weekday: 'short' });
                     const displayDate = targetDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-                    
                     dates.push({ dateString, dayName, displayDate });
                 }
                 return dates;
             };
-            
             const nextSevenDays = getNextSevenDays();
-
-            // Lấy TÊN TẤT CẢ CHUYÊN KHOA
-            const doctorSpecNames = selectedDoctor.specializationIds 
-                ? selectedDoctor.specializationIds.map(id => allSpecializations.find(s => s.id === id)?.name).filter(Boolean).join(', ')
-                : 'N/A';
 
             return (
                 <div className="card p-4 shadow-sm">
                     <h5 className="text-info mb-3">2. Chọn Ngày và Khung giờ Khám</h5>
                     
-                    {/* Thẻ thông tin bác sĩ đã chọn */}
                     <DoctorProfileView 
                         doctor={selectedDoctor} 
                         allCities={allCities} 
@@ -551,7 +525,7 @@ const PatientAppointmentBookers = () => {
                         fetchApi={fetchApi}
                     />
                     
-                    {/* Thanh chọn ngày trực quan (7 ngày) */}
+                    {/* Thanh chọn ngày */}
                     <div className="mb-4 overflow-auto d-flex" style={{ flexWrap: 'nowrap' }}>
                         {nextSevenDays.map(day => {
                             const isActive = day.dateString === searchParams.appointmentDate;
@@ -561,7 +535,6 @@ const PatientAppointmentBookers = () => {
                                     type="button"
                                     className={`btn p-3 me-2 text-center border ${isActive ? 'btn-success text-white shadow' : 'btn-light'}`}
                                     onClick={() => {
-                                        // Cập nhật ngày và kích hoạt useEffect để tải lịch rảnh
                                         setSearchParams(prev => ({ ...prev, appointmentDate: day.dateString }));
                                         setSelectedTime('');
                                     }}
@@ -572,7 +545,6 @@ const PatientAppointmentBookers = () => {
                                 </button>
                             );
                         })}
-                        {/* Thêm nút Ngày khác (Mở lịch đầy đủ - Tùy chọn) */}
                          <button
                             type="button"
                             className={`btn p-3 me-2 text-center border btn-light`}
@@ -584,38 +556,42 @@ const PatientAppointmentBookers = () => {
                         </button>
                     </div>
 
-
                     <h6 className='mt-4'>Khung giờ rảnh ngày {searchParams.appointmentDate}:</h6>
                     
-                    {/* Hiển thị lịch rảnh (Slot 30 phút) */}
+                    {/* Hiển thị Grid Slot */}
                     {isLoading ? (
                         <p className="text-center text-muted">Đang tải lịch rảnh...</p>
                     ) : (
                         <div>
                             {availableTimes.length === 0 ? (
-                                <p className="alert alert-warning">Không có khung giờ rảnh nào cho ngày này.</p>
+                                <p className="alert alert-warning">Bác sĩ không có lịch rảnh vào ngày này. Vui lòng chọn ngày khác.</p>
                             ) : (
                                 <div>
-                                    {/* Slot buttons */}
-                                    <label className="form-label mt-3">Chọn giờ khám (Slots 30 phút):</label>
+                                    <label className="form-label mt-3">Chọn slot khám (30 phút/ca):</label>
                                     <div className="d-flex flex-wrap">
                                         {availableTimes.map(slot => (
                                             <button 
-                                                key={slot.time}
+                                                key={slot.id} // Dùng ID duy nhất của slot
                                                 type="button"
-                                                className={`btn m-1 ${slot.isBooked ? 'btn-danger disabled' : selectedTime === slot.time ? 'btn-primary' : 'btn-outline-primary'}`}
+                                                className={`btn m-1 ${slot.isBooked ? 'btn-secondary disabled' : selectedTime === slot.time ? 'btn-primary' : 'btn-outline-primary'}`}
                                                 onClick={() => !slot.isBooked && setSelectedTime(slot.time)}
                                                 disabled={slot.isBooked}
-                                                style={{ pointerEvents: slot.isBooked ? 'none' : 'auto' }}
+                                                style={{ minWidth: '120px' }}
+                                                title={slot.isBooked ? 'Đã có người đặt' : 'Nhấn để chọn'}
                                             >
-                                                {slot.time} {slot.isBooked && '(Đã đặt)'}
+                                                {slot.time} - {slot.endTime} 
+                                                {slot.isBooked && <span className="d-block small">(Đã kín)</span>}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                             )}
                             
-                            <p className="mt-3">Giờ đã chọn: <strong>{selectedTime || 'Chưa chọn'}</strong></p>
+                            <div className="mt-4 p-3 bg-light rounded border">
+                                <p className="mb-0">
+                                    Giờ đã chọn: <strong>{selectedTime ? `${selectedTime}` : 'Chưa chọn'}</strong>
+                                </p>
+                            </div>
 
                             <form onSubmit={handleBookingConfirm} className="mt-4">
                                 <div className="mb-3">
@@ -626,6 +602,7 @@ const PatientAppointmentBookers = () => {
                                         value={reason} 
                                         onChange={(e) => setReason(e.target.value)} 
                                         required
+                                        placeholder="Mô tả triệu chứng hoặc lý do bạn muốn gặp bác sĩ..."
                                     ></textarea>
                                 </div>
                                 <div className="d-flex justify-content-between">
@@ -642,17 +619,16 @@ const PatientAppointmentBookers = () => {
                 </div>
             );
         } else if (step === 3) {
-            // --- BƯỚC 3: XÁC NHẬN THÀNH CÔNG ---
             return (
                 <div className="alert alert-success text-center p-5">
                     <h4 className="alert-heading">Đặt lịch hẹn thành công!</h4>
-                    <p>Bạn đã đặt lịch khám với Bác sĩ <strong>{selectedDoctor.full_name}</strong> vào lúc <strong>{selectedTime}</strong> ngày <strong>{searchParams.appointmentDate}</strong>.</p>
+                    <p>Bạn đã đặt lịch khám với Bác sĩ <strong>{selectedDoctor.full_name}</strong>.</p>
+                    <p>Thời gian: <strong>{selectedTime}</strong> ngày <strong>{searchParams.appointmentDate}</strong>.</p>
                     <hr />
-                    <p className="mb-0">Vui lòng kiểm tra mục Lịch hẹn để xem chi tiết.</p>
                     <button className="btn btn-primary mt-3" onClick={() => {
                         setStep(1);
-                        setSearchParams(initialSearchState); // Reset form tìm kiếm
-                        setDoctorsList([]); // Xóa kết quả tìm kiếm
+                        setSearchParams(initialSearchState);
+                        setDoctorsList([]);
                     }}>
                         Đặt lịch khác
                     </button>
@@ -664,12 +640,10 @@ const PatientAppointmentBookers = () => {
 
     return (
         <div className="container py-5">
-            <h2 className="mb-4 text-primary">🏥 Đặt Lịch Khám Bệnh</h2>
             
             {error && <div className="alert alert-danger" role="alert">{error}</div>}
             {successMessage && <div className="alert alert-success" role="alert">{successMessage}</div>}
 
-            {/* Thanh tiến trình */}
             <div className="d-flex justify-content-center mb-4">
                 <div className={`p-2 border rounded-start ${step === 1 ? 'bg-primary text-white' : 'bg-light'}`}>1. Chọn Bác sĩ</div>
                 <div className={`p-2 border ${step === 2 ? 'bg-primary text-white' : 'bg-light'}`}>2. Chọn Ngày & Giờ</div>
@@ -682,7 +656,6 @@ const PatientAppointmentBookers = () => {
                 </div>
             </div>
             
-            {/* Modal chọn ngày thủ công */}
             <DatePickerModal
                 isOpen={isDatePickerModalOpen}
                 currentDate={searchParams.appointmentDate || new Date().toISOString().split('T')[0]}

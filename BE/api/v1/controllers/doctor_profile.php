@@ -200,6 +200,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT' || $_SERVER['REQUEST_METHOD'] === 'POST
             }
 
             $responseMessage = "Cập nhật chuyên khoa thành công!";
+        } elseif ($updateType === 'delete_qualification') {
+            // === LOGIC XÓA BẰNG CẤP (Sử dụng hàm trong Model Doctor) ===
+            $qualId = $data->qualificationId ?? null;
+            
+            if (!$qualId) {
+                throw new Exception("Thiếu ID bằng cấp cần xóa.");
+            }
+
+            // Gọi hàm từ Model Doctor như yêu cầu
+            if (!$doctor->deleteQualification($qualId, $doctorId)) {
+                throw new Exception("Không thể xóa: Bằng cấp không tồn tại hoặc không thuộc về bạn.");
+            }
+
+            $responseMessage = "Xóa bằng cấp thành công!";
+            
         } else {
             http_response_code(400);
             echo json_encode(["message" => "Loại cập nhật không hợp lệ."]);

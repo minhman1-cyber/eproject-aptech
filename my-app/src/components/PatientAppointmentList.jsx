@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-// URL API Backend (Sửa port 8888 nếu cần)
-const API_APPOINTMENTS_URL = 'http://localhost:8888/api/v1/controllers/patient_appointment_list.php'; 
-const API_MANAGE_URL = 'http://localhost:8888/api/v1/controllers/manage_appointments.php'; 
-const API_AVAILABILITY_URL = 'http://localhost:8888/api/v1/controllers/doctor_availability_view.php'; 
+// URL API Backend
+const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
+const API_APPOINTMENTS_URL = API_BASE_URL + 'patient_appointment_list.php'; 
+const API_MANAGE_URL = API_BASE_URL + 'manage_appointments.php'; 
+const API_AVAILABILITY_URL = API_BASE_URL + 'doctor_availability_view.php'; 
 
 // Cấu hình các lớp CSS cho trạng thái
 const STATUS_CLASSES = {
@@ -22,14 +23,6 @@ const FILTER_OPTIONS = [
     { value: 'CANCELLED', label: 'Đã hủy' },
 ];
 
-// Cấu hình các ngày trong tuần cho Modal
-const DAYS_OF_WEEK = [
-    { value: 1, label: 'Thứ 2' }, { value: 2, label: 'Thứ 3' }, { value: 3, label: 'Thứ 4' },
-    { value: 4, label: 'Thứ 5' }, { value: 5, label: 'Thứ 6' }, { value: 6, label: 'Thứ 7' },
-    { value: 0, label: 'Chủ Nhật' },
-];
-
-
 // =======================================================
 // COMPONENT PHỤ: MODAL ĐỔI LỊCH (RESCHEDULE)
 // =======================================================
@@ -44,7 +37,6 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
 
     // Hàm tải lịch rảnh cho ngày đã chọn
     const fetchAvailability = useCallback(async (doctorId, date) => {
-        console.log("DEBUG: FETCH START for Doctor:", doctorId, "on Date:", date); // Log BẮT ĐẦU FETCH
         if (!doctorId || !date) return;
         
         setIsLoading(true);
@@ -58,6 +50,7 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
                 body: JSON.stringify(payload)
             });
             
+            // API trả về mảng các object: { id, time, endTime, isBooked }
             setAvailableTimes(data.data.availableTimes || []);
 
         } catch (err) {
@@ -68,43 +61,30 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
         }
     }, [fetchApi]);
 
-    // Hàm set ngày từ Modal Date Picker (Kích hoạt fetch trực tiếp)
+    // Hàm set ngày từ Modal Date Picker
     const handleSetDate = (dateString) => {
-        // Bước 1: Cập nhật state
         setCurrentDate(dateString);
-        setSelectedTime('');
-        
-        // Bước 2: Kích hoạt fetchAvailability trực tiếp
-        // Điều kiện: Chỉ fetch khi appointment và doctor_id đã có
-        if (appointment?.doctor_id) {
-             console.log("DEBUG: Manual Date Set, initiating fetch for date:", dateString); // Log khi click
-             fetchAvailability(appointment.doctor_id, dateString);
-        }
+        // fetchAvailability sẽ được gọi bởi useEffect
     };
 
-    // Effect 1: Thiết lập ngày ban đầu khi Modal mở
+    // Effect: Thiết lập ngày ban đầu
     useEffect(() => {
         if (isModalOpen && appointment) {
-            const initialDate = appointment.appointmentDate;
-            setCurrentDate(initialDate);
+            setCurrentDate(appointment.appointmentDate);
         }
     }, [isModalOpen, appointment]);
 
-    // Effect 2: Tự động tải lịch rảnh khi ngày thay đổi (QUAN TRỌNG)
+    // Effect: Tự động tải lịch rảnh khi ngày thay đổi
     useEffect(() => {
-        // Chỉ tải lịch nếu ngày đã có và doctor_id là số hợp lệ
-        if (currentDate && typeof appointment?.doctor_id === 'number' && appointment.doctor_id > 0) { 
+        if (currentDate && appointment?.doctor_id) { 
             fetchAvailability(appointment.doctor_id, currentDate);
-        } else if (isModalOpen) {
-            console.log("DEBUG: Fetch skipped due to invalid Doctor ID or missing date.", { date: currentDate, id: appointment?.doctor_id });
         }
-
-    }, [currentDate, appointment]); 
+    }, [currentDate, appointment, fetchAvailability]); 
 
 
     if (!isModalOpen || !appointment) return null;
 
-    // Hàm tiện ích để lấy tên thứ/ngày
+    // Helper tạo danh sách 7 ngày tới
     const getNextSevenDays = () => {
         const dates = [];
         for (let i = 0; i < 7; i++) {
@@ -113,7 +93,6 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
             const dateString = targetDate.toISOString().split('T')[0];
             const dayName = targetDate.toLocaleDateString('vi-VN', { weekday: 'short' });
             const displayDate = targetDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-            
             dates.push({ dateString, dayName, displayDate });
         }
         return dates;
@@ -121,7 +100,7 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
     
     const nextSevenDays = getNextSevenDays();
 
-    // HÀM BỊ THIẾU: XỬ LÝ SUBMIT ĐỔI LỊCH
+    // Xử lý đổi lịch
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLocalError(null);
@@ -133,7 +112,7 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
             return;
         }
 
-        // Kiểm tra xem giờ mới có trùng với giờ cũ không
+        // Validate trùng lịch cũ
         if (currentDate === appointment.appointmentDate && selectedTime === appointment.appointmentTime) {
              setLocalError("Bạn phải chọn ngày giờ khác với lịch hẹn hiện tại.");
              setIsLoading(false);
@@ -148,13 +127,13 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
         };
 
         try {
-            await fetchApi(API_MANAGE_URL, {
+            const data = await fetchApi(API_MANAGE_URL, {
                 method: 'PUT',
                 body: JSON.stringify(payload),
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            window.alert(`Đổi lịch hẹn #${appointment.id} thành công!`);
+            window.alert(data.message || `Đổi lịch hẹn #${appointment.id} thành công!`);
             closeModal();
             refreshList();
 
@@ -167,8 +146,8 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
 
 
     return (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-            <div className="modal-dialog modal-lg">
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }} tabIndex="-1">
+            <div className="modal-dialog modal-lg modal-dialog-centered">
                 <div className="modal-content">
                     <form onSubmit={handleSubmit}>
                         <div className="modal-header bg-info text-white">
@@ -178,17 +157,17 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
                         <div className="modal-body">
                             {localError && <div className="alert alert-danger" role="alert">{localError}</div>}
                             
-                            {/* Thanh chọn ngày trực quan (7 ngày) */}
+                            {/* 1. Chọn Ngày */}
                             <label className="form-label fw-bold">Chọn Ngày Khám mới:</label>
-                            <div className="mb-4 overflow-auto d-flex border p-2 rounded" style={{ flexWrap: 'nowrap' }}>
+                            <div className="mb-4 overflow-auto d-flex border p-2 rounded bg-light" style={{ flexWrap: 'nowrap' }}>
                                 {nextSevenDays.map(day => {
                                     const isActive = day.dateString === currentDate;
                                     return (
                                         <button
                                             key={day.dateString}
                                             type="button"
-                                            className={`btn p-2 me-2 text-center border ${isActive ? 'btn-success text-white shadow' : 'btn-light'}`}
-                                            onClick={() => handleSetDate(day.dateString)} // <<< Dòng này gọi handleSetDate
+                                            className={`btn p-2 me-2 text-center border ${isActive ? 'btn-success text-white shadow' : 'btn-white bg-white'}`}
+                                            onClick={() => handleSetDate(day.dateString)}
                                             style={{ minWidth: '80px', flexShrink: 0 }}
                                         >
                                             <span className="d-block fw-bold">{day.displayDate}</span>
@@ -196,39 +175,46 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
                                         </button>
                                     );
                                 })}
-                                {/* Nút Ngày khác (Mở input date picker) */}
+                                {/* Input date picker cho ngày xa hơn */}
                                 <input
                                     type="date"
-                                    className="btn btn-light p-2 me-2 text-center border"
-                                    style={{ minWidth: '80px', flexShrink: 0 }}
+                                    className="form-control"
+                                    style={{ width: 'auto', minWidth: '130px' }}
                                     onChange={(e) => handleSetDate(e.target.value)}
                                     min={new Date().toISOString().split('T')[0]}
                                     title="Chọn ngày khác"
                                 />
                             </div>
 
-                            {/* Hiển thị Slot Rảnh */}
-                            <h6 className='mt-4'>Khung giờ rảnh ngày {currentDate}:</h6>
+                            {/* 2. Hiển thị Slot Rảnh */}
+                            <h6 className='mt-4 fw-bold text-muted'>Khung giờ rảnh ngày {currentDate}:</h6>
                             
                             {isLoading ? (
-                                <p className="text-center text-muted">Đang tải lịch...</p>
+                                <div className="text-center py-3">
+                                    <div className="spinner-border text-info" role="status"></div>
+                                    <p className="text-muted mt-2">Đang tải lịch...</p>
+                                </div>
                             ) : availableTimes.length === 0 ? (
-                                <p className="alert alert-warning">Không có khung giờ rảnh nào cho ngày này.</p>
+                                <p className="alert alert-warning">Bác sĩ không có lịch rảnh vào ngày này.</p>
                             ) : (
                                 <div>
-                                    <label className="form-label mt-3">Chọn giờ khám (Slots 30 phút):</label>
-                                    <div className="d-flex flex-wrap">
+                                    <div className="d-flex flex-wrap gap-2">
                                         {availableTimes.map(slot => (
                                             <button 
-                                                key={slot.time}
+                                                key={slot.id} // Dùng ID slot làm key
                                                 type="button"
-                                                className={`btn m-1 ${slot.isBooked ? 'btn-danger disabled' : selectedTime === slot.time ? 'btn-primary' : 'btn-outline-primary'}`}
+                                                className={`btn ${slot.isBooked ? 'btn-secondary disabled' : selectedTime === slot.time ? 'btn-info text-white' : 'btn-outline-info'}`}
                                                 onClick={() => !slot.isBooked && setSelectedTime(slot.time)}
                                                 disabled={slot.isBooked}
+                                                style={{ minWidth: '110px' }}
                                             >
-                                                {slot.time} {slot.isBooked && '(Đã đặt)'}
+                                                {slot.time} - {slot.endTime}
+                                                {slot.isBooked && <span className="d-block small" style={{fontSize: '0.7em'}}>(Đã kín)</span>}
                                             </button>
                                         ))}
+                                    </div>
+                                    <div className="mt-3 p-2 bg-light rounded text-center">
+                                        Giờ chọn: <strong>{selectedTime ? selectedTime : 'Chưa chọn'}</strong>
                                     </div>
                                 </div>
                             )}
@@ -237,7 +223,7 @@ const RescheduleModal = ({ appointment, isModalOpen, closeModal, refreshList, fe
                         <div className="modal-footer">
                             <button type="button" className="btn btn-secondary" onClick={closeModal} disabled={isLoading}>Hủy</button>
                             <button type="submit" className="btn btn-info text-white" disabled={!selectedTime || isLoading}>
-                                {isLoading ? 'Đang lưu...' : 'Xác nhận Đổi lịch'}
+                                {isLoading ? 'Đang xử lý...' : 'Xác nhận Đổi lịch'}
                             </button>
                         </div>
                     </form>
@@ -258,10 +244,10 @@ const PatientAppointmentList = () => {
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
     
-    const [filterStatus, setFilterStatus] = useState('ALL'); // Lọc theo trạng thái
+    const [filterStatus, setFilterStatus] = useState('ALL'); 
     
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
-    const [rescheduleAppointment, setRescheduleAppointment] = useState(null); // Lịch hẹn đang được đổi
+    const [rescheduleAppointment, setRescheduleAppointment] = useState(null); 
 
     // Hàm gọi API FETCH chung
     const fetchApi = useCallback(async (url, options) => {
@@ -279,7 +265,6 @@ const PatientAppointmentList = () => {
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
             if (!response.ok) {
-                // Kiểm tra lỗi 409 Conflict từ Backend
                 const errorMessage = (response.status === 409 ? 'Lỗi trùng lặp: ' : '') + (data.message || 'Lỗi hệ thống không xác định.');
                 throw new Error(errorMessage);
             }
@@ -298,9 +283,7 @@ const PatientAppointmentList = () => {
         setIsLoading(true);
         try {
             const data = await fetchApi(API_APPOINTMENTS_URL, { method: 'GET' });
-            
             setAppointments(data.data.appointments || []);
-
         } catch (err) {
             setError(err.message);
         } finally {
@@ -313,7 +296,7 @@ const PatientAppointmentList = () => {
     }, [fetchAppointments]);
 
 
-    // ------------------- LOGIC HÀNH ĐỘNG (Hủy lịch) -------------------
+    // ------------------- LOGIC HỦY LỊCH -------------------
     const handleCancel = async (appointmentId) => {
         if (!window.confirm(`Bạn có chắc chắn muốn HỦY lịch hẹn #${appointmentId} này không?`)) return; 
         
@@ -326,13 +309,13 @@ const PatientAppointmentList = () => {
                 actionType: 'CANCEL',
             };
 
-            await fetchApi(API_MANAGE_URL, {
+            const data = await fetchApi(API_MANAGE_URL, {
                 method: 'PUT',
                 body: JSON.stringify(payload),
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            setSuccessMessage('Đã hủy lịch hẹn thành công.');
+            setSuccessMessage(data.message || 'Đã hủy lịch hẹn thành công.');
             fetchAppointments(); 
 
         } catch (err) {
@@ -344,15 +327,15 @@ const PatientAppointmentList = () => {
 
     // Mở Modal đổi lịch
     const openRescheduleModal = (app) => {
-    if (!app.doctor_id) {
-        console.error("Doctor ID không hợp lệ:", app);
-        return; // Không mở modal nếu thiếu doctor_id
-    }
-    // Chuyển sang number nếu cần
-    app.doctor_id = Number(app.doctor_id);
-    setRescheduleAppointment(app);
-    setIsRescheduleModalOpen(true);
-};
+        if (!app.doctor_id) {
+            console.error("Doctor ID không hợp lệ:", app);
+            return;
+        }
+        // Clone object để tránh tham chiếu
+        const appToEdit = { ...app, doctor_id: Number(app.doctor_id) };
+        setRescheduleAppointment(appToEdit);
+        setIsRescheduleModalOpen(true);
+    };
 
     // ------------------- LOGIC LỌC DỮ LIỆU -------------------
     const filteredAppointments = appointments.filter(app => {
@@ -360,103 +343,118 @@ const PatientAppointmentList = () => {
         return app.status === filterStatus;
     });
     
-    // ------------------- RENDER -------------------
+    // ------------------- RENDER UI -------------------
     return (
         <div className="container py-5">
-            <h2 className="mb-4 text-primary">📋 Lịch Hẹn Khám Bệnh Của Tôi</h2>
+            <h2 className="mb-4 text-primary fw-bold"><i className="bi bi-calendar-check me-2"></i>Lịch Hẹn Của Tôi</h2>
 
-            {error && <div className="alert alert-danger" role="alert">{error}</div>}
-            {successMessage && <div className="alert alert-success" role="alert">{successMessage}</div>}
+            {error && <div className="alert alert-danger shadow-sm" role="alert"><i className="bi bi-exclamation-triangle-fill me-2"></i> {error}</div>}
+            {successMessage && <div className="alert alert-success shadow-sm" role="alert"><i className="bi bi-check-circle-fill me-2"></i> {successMessage}</div>}
 
-            <div className="card shadow-sm p-4">
-                {/* Thanh Lọc */}
-                <div className="d-flex justify-content-between mb-4">
-                    <div className="d-flex align-items-center">
-                        <label className="form-label mb-0 me-2">Lọc theo Trạng thái:</label>
-                        <select 
-                            className="form-select" 
-                            style={{ width: '200px' }}
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                        >
-                            {FILTER_OPTIONS.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                        </select>
+            <div className="card shadow border-0 rounded-3">
+                <div className="card-header bg-white py-3">
+                    <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div className="d-flex align-items-center">
+                            <label className="form-label mb-0 me-2 fw-bold text-muted">Trạng thái:</label>
+                            <select 
+                                className="form-select" 
+                                style={{ width: '200px' }}
+                                value={filterStatus}
+                                onChange={(e) => setFilterStatus(e.target.value)}
+                            >
+                                {FILTER_OPTIONS.map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <button className="btn btn-primary" onClick={() => window.location.href = '/patient/booking'}>
+                            <i className="bi bi-plus-lg me-2"></i> Đặt lịch mới
+                        </button>
                     </div>
-                    {/* Thêm nút Quay lại Đặt lịch nếu cần */}
-                    <button className="btn btn-primary" onClick={() => window.location.href = '/'}>
-                        <i className="bi bi-calendar-plus me-2"></i> Đặt lịch mới
-                    </button>
                 </div>
 
-                {/* Bảng Danh sách Lịch hẹn */}
-                <div className="table-responsive">
-                    <table className="table table-striped align-middle">
-                        <thead className="table-light">
-                            <tr>
-                                <th>#ID</th>
-                                <th>Bác sĩ</th>
-                                <th>Thời gian</th>
-                                <th>Lý do</th>
-                                <th>Trạng thái</th>
-                                <th>Ngày tạo</th>
-                                <th>Hành động</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {isLoading ? (
+                <div className="card-body p-0">
+                    <div className="table-responsive">
+                        <table className="table table-hover align-middle mb-0">
+                            <thead className="table-light">
                                 <tr>
-                                    <td colSpan="7" className="text-center py-4 text-muted">Đang tải lịch hẹn...</td>
+                                    <th className="ps-4">#ID</th>
+                                    <th>Bác sĩ</th>
+                                    <th>Thời gian</th>
+                                    <th>Lý do</th>
+                                    <th>Trạng thái</th>
+                                    <th>Ngày tạo</th>
+                                    <th className="text-end pe-4">Hành động</th>
                                 </tr>
-                            ) : filteredAppointments.length === 0 ? (
-                                <tr>
-                                    <td colSpan="7" className="text-center py-4 text-muted">Bạn chưa có lịch hẹn nào.</td>
-                                </tr>
-                            ) : (
-                                filteredAppointments.map(app => (
-                                    <tr key={app.id}>
-                                        <td>{app.id}</td>
-                                        <td>{app.doctorName}</td>
-                                        <td>{app.appointmentDate} lúc <strong>{app.appointmentTime}</strong></td>
-                                        <td>{app.reason}</td>
-                                        <td>
-                                            <span className={`badge ${STATUS_CLASSES[app.status] || 'bg-secondary'}`}>
-                                                {app.status}
-                                            </span>
-                                        </td>
-                                        <td>{new Date(app.createdAt).toLocaleDateString()}</td>
-                                        <td>
-                                            {/* Chỉ hiển thị nút khi trạng thái là BOOKED hoặc RESCHEDULED */}
-                                            {(app.status === 'BOOKED' || app.status === 'RESCHEDULED') && (
-                                                <>
-                                                    <button 
-                                                        className="btn btn-sm btn-outline-info me-2"
-                                                        onClick={() => openRescheduleModal(app)}
-                                                        disabled={isLoading}
-                                                    >
-                                                        Đổi lịch
-                                                    </button>
-                                                    <button 
-                                                        className="btn btn-sm btn-danger" 
-                                                        onClick={() => handleCancel(app.id)}
-                                                        disabled={isLoading}
-                                                    >
-                                                        Hủy
-                                                    </button>
-                                                </>
-                                            )}
-                                            {(app.status === 'CANCELLED' || app.status === 'COMPLETED') && (
-                                                <span className="text-muted">Không có</span>
-                                            )}
+                            </thead>
+                            <tbody>
+                                {isLoading ? (
+                                    <tr>
+                                        <td colSpan="7" className="text-center py-5 text-muted">
+                                            <div className="spinner-border text-primary me-2" role="status"></div>
+                                            Đang tải dữ liệu...
                                         </td>
                                     </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                                ) : filteredAppointments.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="7" className="text-center py-5 text-muted">
+                                            <i className="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>
+                                            Bạn chưa có lịch hẹn nào.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredAppointments.map(app => (
+                                        <tr key={app.id}>
+                                            <td className="ps-4 fw-bold text-muted">#{app.id}</td>
+                                            <td className="fw-bold text-primary">{app.doctorName}</td>
+                                            <td>
+                                                <div className="d-flex flex-column">
+                                                    <span className="fw-bold">{app.appointmentTime}</span>
+                                                    <span className="small text-muted">{new Date(app.appointmentDate).toLocaleDateString('vi-VN')}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span className="d-inline-block text-truncate" style={{maxWidth: '150px'}} title={app.reason}>
+                                                    {app.reason}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`badge ${STATUS_CLASSES[app.status] || 'bg-secondary'} rounded-pill px-3`}>
+                                                    {app.status}
+                                                </span>
+                                            </td>
+                                            <td className="small text-muted">{new Date(app.createdAt).toLocaleDateString('vi-VN')}</td>
+                                            <td className="text-end pe-4">
+                                                {(app.status === 'BOOKED' || app.status === 'RESCHEDULED') ? (
+                                                    <div className="d-flex justify-content-end gap-2">
+                                                        <button 
+                                                            className="btn btn-sm btn-outline-info"
+                                                            onClick={() => openRescheduleModal(app)}
+                                                            disabled={isLoading}
+                                                            title="Đổi sang ngày/giờ khác"
+                                                        >
+                                                            <i className="bi bi-calendar-range me-1"></i> Đổi lịch
+                                                        </button>
+                                                        <button 
+                                                            className="btn btn-sm btn-outline-danger" 
+                                                            onClick={() => handleCancel(app.id)}
+                                                            disabled={isLoading}
+                                                            title="Hủy lịch hẹn"
+                                                        >
+                                                            <i className="bi bi-x-lg me-1"></i> Hủy
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-muted small fst-italic">Không khả dụng</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-
             </div>
             
             {/* Modal Đổi lịch */}

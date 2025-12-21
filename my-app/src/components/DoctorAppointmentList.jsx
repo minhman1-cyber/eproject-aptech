@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
 // URL API Backend
-const API_APPOINTMENTS_URL = 'http://localhost:8888/api/v1/controllers/doctor_appointment_list.php'; 
-const API_MANAGE_URL = 'http://localhost:8888/api/v1/controllers/doctor_appointment_list.php'; 
+// Đảm bảo cổng (port) khớp với server PHP của bạn (ví dụ: 8888 hoặc 80)
+const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
+const API_APPOINTMENTS_URL = API_BASE_URL + 'doctor_appointment_list.php'; 
 
-// Cấu hình các lớp CSS cho trạng thái
+// Cấu hình các lớp CSS cho trạng thái (Badge colors)
 const STATUS_CLASSES = {
-    'BOOKED': 'bg-primary',
-    'RESCHEDULED': 'bg-info',
-    'CANCELLED': 'bg-danger',
-    'COMPLETED': 'bg-success',
+    'BOOKED': 'bg-primary',       // Xanh dương
+    'RESCHEDULED': 'bg-info',     // Xanh nhạt
+    'CANCELLED': 'bg-danger',     // Đỏ
+    'COMPLETED': 'bg-success',    // Xanh lá
 };
 
+// Các tùy chọn lọc trạng thái
 const FILTER_OPTIONS = [
     { value: 'ALL', label: 'Tất cả' },
     { value: 'BOOKED', label: 'Đã đặt' },
@@ -20,55 +22,63 @@ const FILTER_OPTIONS = [
     { value: 'CANCELLED', label: 'Đã hủy' },
 ];
 
-
 const DoctorAppointmentList = () => {
+    // --- State Management ---
     const [appointments, setAppointments] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
     
-    // State Lọc
+    // --- Filter States ---
     const [filterStatus, setFilterStatus] = useState('ALL'); 
-    const [filterDate, setFilterDate] = useState(''); // Lọc theo ngày
-    const [searchTerm, setSearchTerm] = useState(''); // Tìm kiếm bệnh nhân
+    const [filterDate, setFilterDate] = useState(''); // YYYY-MM-DD
+    const [searchTerm, setSearchTerm] = useState(''); // Tìm theo tên hoặc ID
 
-    // Hàm gọi API FETCH chung (Giữ nguyên)
-    const fetchApi = useCallback(async (url, options) => {
+    // --- Helper: Hàm gọi API chung ---
+    const fetchApi = useCallback(async (url, options = {}) => {
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+        };
+
         const response = await fetch(url, {
             ...options,
-            credentials: 'include',
-            headers: options.headers || {},
+            credentials: 'include', // Quan trọng: Gửi kèm Cookie/Session
+            headers: headers,
         });
 
+        // 1. Check lỗi 401 (Session expired)
         if (response.status === 401) {
             throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.");
         }
         
+        // 2. Xử lý response JSON
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = (response.status === 409 ? 'Lỗi trùng lặp: ' : '') + (data.message || 'Lỗi hệ thống không xác định.');
+                // Lấy message lỗi từ backend trả về
+                const errorMessage = (response.status === 409 ? 'Xung đột dữ liệu: ' : '') + (data.message || 'Lỗi hệ thống.');
                 throw new Error(errorMessage);
             }
             return data;
         }
         
+        // 3. Xử lý lỗi không phải JSON (VD: Lỗi PHP Fatal Error in ra text)
         if (!response.ok) {
-            throw new Error('Thao tác thất bại (Lỗi Server).');
+            throw new Error('Thao tác thất bại (Lỗi Server không trả về JSON).');
         }
         return {};
     }, []);
 
-    // ------------------- TẢI DANH SÁCH LỊCH HẸN -------------------
+    // --- 1. Tải danh sách lịch hẹn ---
     const fetchAppointments = useCallback(async () => {
         setError(null);
         setIsLoading(true);
         try {
             const data = await fetchApi(API_APPOINTMENTS_URL, { method: 'GET' });
-            
-            setAppointments(data.data.appointments || []);
-
+            // API trả về: { message: "...", data: { appointments: [...] } }
+            setAppointments(data.data?.appointments || []);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -76,12 +86,12 @@ const DoctorAppointmentList = () => {
         }
     }, [fetchApi]);
 
+    // Gọi API khi component mount
     useEffect(() => {
         fetchAppointments();
     }, [fetchAppointments]);
 
-
-    // ------------------- LOGIC HÀNH ĐỘNG (Hủy & Hoàn thành) -------------------
+    // --- 2. Xử lý hành động (Hủy / Hoàn thành) ---
     const handleAction = useCallback(async (appointmentId, actionType) => {
         const actionMap = {
             'CANCEL': 'HỦY lịch hẹn',
@@ -92,31 +102,33 @@ const DoctorAppointmentList = () => {
         
         try {
             setSuccessMessage(null);
+            setError(null);
             setIsLoading(true);
 
+            // Payload gửi lên backend
             const payload = {
                 id: appointmentId,
                 actionType: actionType,
             };
 
-            await fetchApi(API_MANAGE_URL, {
+            // Gọi API với method PUT
+            const data = await fetchApi(API_APPOINTMENTS_URL, {
                 method: 'PUT',
-                body: JSON.stringify(payload),
-                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
 
-            setSuccessMessage(actionMap[actionType] + ' thành công.');
-            fetchAppointments(); // Tải lại danh sách
+            setSuccessMessage(data.message || `${actionMap[actionType]} thành công.`);
+            
+            // Tải lại danh sách để cập nhật trạng thái mới nhất
+            fetchAppointments(); 
 
         } catch (err) {
             setError(err.message);
-        } finally {
-            setIsLoading(false);
+            setIsLoading(false); // Chỉ tắt loading ở đây nếu lỗi, nếu thành công thì fetchAppointments sẽ xử lý loading
         }
     }, [fetchApi, fetchAppointments]);
 
-
-    // ------------------- LOGIC LỌC DỮ LIỆU (MỚI) -------------------
+    // --- 3. Logic Lọc dữ liệu (Client-side Filtering) ---
     const filteredAppointments = useMemo(() => {
         return appointments.filter(app => {
             // Lọc theo Trạng thái
@@ -129,11 +141,11 @@ const DoctorAppointmentList = () => {
                 return false;
             }
 
-            // Tìm kiếm theo Tên Bệnh nhân (hoặc ID)
+            // Tìm kiếm theo Tên Bệnh nhân hoặc ID
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
-                const matchesName = app.patientName.toLowerCase().includes(term);
-                const matchesId = String(app.id) === term; // Tìm theo ID cuộc hẹn
+                const matchesName = (app.patientName || '').toLowerCase().includes(term);
+                const matchesId = String(app.id) === term; 
                 if (!matchesName && !matchesId) {
                     return false;
                 }
@@ -143,123 +155,154 @@ const DoctorAppointmentList = () => {
         });
     }, [appointments, filterStatus, filterDate, searchTerm]);
     
-    // ------------------- RENDER -------------------
+    // --- Render ---
     return (
         <div className="container py-5">
+            <h2 className="mb-4 text-primary fw-bold">
+                <i className="bi bi-calendar-check-fill me-2"></i> Quản lý Lịch hẹn
+            </h2>
 
-            {error && <div className="alert alert-danger" role="alert">{error}</div>}
-            {successMessage && <div className="alert alert-success" role="alert">{successMessage}</div>}
+            {/* Thông báo lỗi / thành công */}
+            {error && <div className="alert alert-danger shadow-sm" role="alert"><i className="bi bi-exclamation-triangle-fill me-2"></i>{error}</div>}
+            {successMessage && <div className="alert alert-success shadow-sm" role="alert"><i className="bi bi-check-circle-fill me-2"></i>{successMessage}</div>}
 
-            <div className="card shadow-sm p-4">
-                {/* Thanh Lọc & Tìm kiếm */}
-                <div className="d-flex flex-wrap align-items-center mb-4">
+            <div className="card shadow border-0 rounded-3">
+                <div className="card-body p-4">
                     
-                    {/* Lọc Trạng thái */}
-                    <div className="d-flex align-items-center me-4 mb-2">
-                        <label className="form-label mb-0 me-2">Trạng thái:</label>
-                        <select 
-                            className="form-select" 
-                            style={{ width: '150px' }}
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                        >
-                            {FILTER_OPTIONS.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                        </select>
+                    {/* --- THANH CÔNG CỤ (FILTER & SEARCH) --- */}
+                    <div className="row g-3 mb-4">
+                        {/* Lọc Trạng thái */}
+                        <div className="col-md-3 col-sm-6">
+                            <label className="form-label fw-bold text-muted small">Trạng thái</label>
+                            <select 
+                                className="form-select" 
+                                value={filterStatus}
+                                onChange={(e) => setFilterStatus(e.target.value)}
+                            >
+                                {FILTER_OPTIONS.map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Lọc Ngày */}
+                        <div className="col-md-3 col-sm-6">
+                            <label className="form-label fw-bold text-muted small">Ngày khám</label>
+                            <input
+                                type="date"
+                                className="form-control"
+                                value={filterDate}
+                                onChange={(e) => setFilterDate(e.target.value)}
+                            />
+                        </div>
+                        
+                        {/* Tìm kiếm */}
+                        <div className="col-md-6 col-sm-12">
+                            <label className="form-label fw-bold text-muted small">Tìm kiếm</label>
+                            <div className="input-group">
+                                <span className="input-group-text bg-white"><i className="bi bi-search"></i></span>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    placeholder="Tên bệnh nhân hoặc Mã số lịch hẹn..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Lọc Ngày */}
-                    <div className="d-flex align-items-center me-4 mb-2">
-                        <label className="form-label mb-0 me-2">Ngày khám:</label>
-                        <input
-                            type="date"
-                            className="form-control"
-                            value={filterDate}
-                            onChange={(e) => setFilterDate(e.target.value)}
-                            style={{ width: '150px' }}
-                        />
-                    </div>
-                    
-                    {/* Tìm kiếm Bệnh nhân */}
-                    <div className="d-flex align-items-center flex-grow-1 mb-2">
-                        <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Tìm kiếm theo Tên Bệnh nhân / ID lịch hẹn"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </div>
-
-                {/* Bảng Danh sách Lịch hẹn */}
-                <div className="table-responsive">
-                    <table className="table table-striped align-middle">
-                        <thead className="table-light">
-                            <tr>
-                                <th>#ID</th>
-                                <th>Bệnh nhân</th>
-                                <th>Thời gian</th>
-                                <th>Lý do khám</th>
-                                <th>Trạng thái</th>
-                                <th>Ngày tạo</th>
-                                <th>Hành động</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {isLoading ? (
+                    {/* --- BẢNG DỮ LIỆU --- */}
+                    <div className="table-responsive">
+                        <table className="table table-hover align-middle">
+                            <thead className="table-light">
                                 <tr>
-                                    <td colSpan="7" className="text-center py-4 text-muted">Đang tải lịch hẹn...</td>
+                                    <th scope="col">#ID</th>
+                                    <th scope="col">Bệnh nhân</th>
+                                    <th scope="col">Thời gian</th>
+                                    <th scope="col">Lý do khám</th>
+                                    <th scope="col">Trạng thái</th>
+                                    <th scope="col">Ngày tạo</th>
+                                    <th scope="col" className="text-end">Hành động</th>
                                 </tr>
-                            ) : filteredAppointments.length === 0 ? (
-                                <tr>
-                                    <td colSpan="7" className="text-center py-4 text-muted">Không tìm thấy lịch hẹn nào khớp với tiêu chí lọc.</td>
-                                </tr>
-                            ) : (
-                                filteredAppointments.map(app => (
-                                    <tr key={app.id}>
-                                        <td>{app.id}</td>
-                                        <td>{app.patientName}</td>
-                                        <td>{app.appointmentDate} lúc <strong>{app.appointmentTime}</strong></td>
-                                        <td>{app.reason}</td>
-                                        <td>
-                                            <span className={`badge ${STATUS_CLASSES[app.status] || 'bg-secondary'}`}>
-                                                {app.status}
-                                            </span>
-                                        </td>
-                                        <td>{new Date(app.createdAt).toLocaleDateString()}</td>
-                                        <td>
-                                            {/* Nút chỉ hiện khi trạng thái cho phép (BOOKED/RESCHEDULED) */}
-                                            {(app.status === 'BOOKED' || app.status === 'RESCHEDULED') && (
-                                                <>
-                                                    <button 
-                                                        className="btn btn-sm btn-success me-2"
-                                                        onClick={() => handleAction(app.id, 'COMPLETE')}
-                                                        disabled={isLoading}
-                                                    >
-                                                        Hoàn thành
-                                                    </button>
-                                                    <button 
-                                                        className="btn btn-sm btn-danger" 
-                                                        onClick={() => handleAction(app.id, 'CANCEL')}
-                                                        disabled={isLoading}
-                                                    >
-                                                        Hủy
-                                                    </button>
-                                                </>
-                                            )}
-                                            {(app.status === 'CANCELLED' || app.status === 'COMPLETED') && (
-                                                <span className="text-muted">Đã kết thúc</span>
-                                            )}
+                            </thead>
+                            <tbody>
+                                {isLoading ? (
+                                    <tr>
+                                        <td colSpan="7" className="text-center py-5 text-muted">
+                                            <div className="spinner-border text-primary me-2" role="status"></div>
+                                            Đang tải dữ liệu...
                                         </td>
                                     </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                ) : filteredAppointments.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="7" className="text-center py-5 text-muted">
+                                            <i className="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>
+                                            Không tìm thấy lịch hẹn nào phù hợp.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredAppointments.map(app => (
+                                        <tr key={app.id}>
+                                            <td className="fw-bold text-muted">#{app.id}</td>
+                                            <td className="fw-bold text-primary">{app.patientName}</td>
+                                            <td>
+                                                <div className="d-flex flex-column">
+                                                    <span className="fw-bold">{app.appointmentTime}</span>
+                                                    <span className="small text-muted">{app.appointmentDate}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span className="d-inline-block text-truncate" style={{maxWidth: '150px'}} title={app.reason}>
+                                                    {app.reason}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`badge ${STATUS_CLASSES[app.status] || 'bg-secondary'} rounded-pill px-3`}>
+                                                    {app.status}
+                                                </span>
+                                            </td>
+                                            <td className="small text-muted">{new Date(app.createdAt).toLocaleDateString('vi-VN')}</td>
+                                            <td className="text-end">
+                                                {/* Logic hiển thị nút bấm dựa trên trạng thái */}
+                                                {(app.status === 'BOOKED' || app.status === 'RESCHEDULED') && (
+                                                    <div className="d-flex justify-content-end gap-2">
+                                                        <button 
+                                                            className="btn btn-sm btn-outline-success d-flex align-items-center"
+                                                            onClick={() => handleAction(app.id, 'COMPLETE')}
+                                                            disabled={isLoading}
+                                                            title="Đánh dấu đã khám xong"
+                                                        >
+                                                            <i className="bi bi-check-lg me-1"></i> Xong
+                                                        </button>
+                                                        <button 
+                                                            className="btn btn-sm btn-outline-danger d-flex align-items-center" 
+                                                            onClick={() => handleAction(app.id, 'CANCEL')}
+                                                            disabled={isLoading}
+                                                            title="Hủy lịch hẹn này"
+                                                        >
+                                                            <i className="bi bi-x-lg me-1"></i> Hủy
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                
+                                                {(app.status === 'CANCELLED' || app.status === 'COMPLETED') && (
+                                                    <span className="text-muted small fst-italic">Đã đóng</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    {/* End Table Responsive */}
+                    
+                    <div className="mt-3 text-muted small text-end">
+                        Tổng cộng: <strong>{filteredAppointments.length}</strong> bản ghi
+                    </div>
 
+                </div>
             </div>
         </div>
     );

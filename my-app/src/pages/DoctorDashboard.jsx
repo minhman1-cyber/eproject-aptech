@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import DoctorProfiles from '../components/DoctorProfiles';
-
+import DoctorAppointmentList from '../components/DoctorAppointmentList';
+import DoctorAvailabilityManager from '../components/DoctorAvailabilityManager';
 
 // --- CONFIGURATION ---
 const BASE_API_URL = 'http://localhost:8888/api/v1/controllers';
@@ -83,8 +84,22 @@ const StatCard = ({ title, value, subtext, icon, color }) => (
   </div>
 );
 
+// --- COMPONENT ĐÃ SỬA LỖI ---
+// Sử dụng useState để tự quản lý dropdown thay vì phụ thuộc vào Bootstrap JS
 const AppointmentItem = ({ item, onUpdateStatus, isUpdating }) => {
-  // Map API status to Display status & Color
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Đóng dropdown khi click ra ngoài
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isOpen && !event.target.closest('.dropdown-container')) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
   const getStatusInfo = (status) => {
     switch (status) {
       case 'BOOKED': return { label: 'Sắp tới', color: 'primary', icon: 'fa-clock' };
@@ -101,7 +116,7 @@ const AppointmentItem = ({ item, onUpdateStatus, isUpdating }) => {
   return (
     <div className={`d-flex align-items-center p-3 border-bottom ${isBooked ? 'bg-white' : 'bg-light'}`}>
       <div className="me-4 text-center" style={{ minWidth: '70px' }}>
-        <span className="d-block fw-bold fs-5">{item.appointmentTime}</span>
+        <span className="d-block fw-bold fs-5">{item.appointmentTime ? item.appointmentTime.substring(0, 5) : '--:--'}</span>
         <small className="text-muted">{item.appointmentDate}</small>
       </div>
       <div className="flex-grow-1">
@@ -114,24 +129,35 @@ const AppointmentItem = ({ item, onUpdateStatus, isUpdating }) => {
           <i className={`fas ${statusInfo.icon} me-1`}></i> {statusInfo.label}
         </span>
         
-        {/* Action Buttons for Booked appointments */}
+        {/* Dropdown Menu thủ công */}
         {isBooked && (
-          <div className="dropdown ms-2">
-            <button className="btn btn-light btn-sm rounded-circle shadow-sm" type="button" data-bs-toggle="dropdown" disabled={isUpdating}>
+          <div className="dropdown ms-2 position-relative dropdown-container">
+            <button 
+                className={`btn btn-light btn-sm rounded-circle shadow-sm ${isOpen ? 'active' : ''}`} 
+                type="button" 
+                onClick={() => setIsOpen(!isOpen)}
+                disabled={isUpdating}
+                title="Hành động"
+            >
               <i className="fas fa-ellipsis-v text-muted"></i>
             </button>
-            <ul className="dropdown-menu dropdown-menu-end border-0 shadow">
-              <li>
-                <button className="dropdown-item text-success" onClick={() => onUpdateStatus(item.id, 'COMPLETE')}>
-                  <i className="fas fa-check me-2"></i> Hoàn thành
-                </button>
-              </li>
-              <li>
-                <button className="dropdown-item text-danger" onClick={() => onUpdateStatus(item.id, 'CANCEL')}>
-                  <i className="fas fa-ban me-2"></i> Hủy lịch
-                </button>
-              </li>
-            </ul>
+            
+            {/* Menu hiển thị dựa trên state isOpen */}
+            {isOpen && (
+                <ul className="dropdown-menu dropdown-menu-end border-0 shadow show" style={{ display: 'block', position: 'absolute', right: 0, zIndex: 1050 }}>
+                  <li>
+                    <button className="dropdown-item text-success d-flex align-items-center" onClick={() => { setIsOpen(false); onUpdateStatus(item.id, 'COMPLETE'); }}>
+                      <i className="fas fa-check me-2" style={{width: '20px'}}></i> Hoàn thành
+                    </button>
+                  </li>
+                  <li><hr className="dropdown-divider" /></li>
+                  <li>
+                    <button className="dropdown-item text-danger d-flex align-items-center" onClick={() => { setIsOpen(false); onUpdateStatus(item.id, 'CANCEL'); }}>
+                      <i className="fas fa-ban me-2" style={{width: '20px'}}></i> Hủy lịch
+                    </button>
+                  </li>
+                </ul>
+            )}
           </div>
         )}
       </div>
@@ -140,7 +166,6 @@ const AppointmentItem = ({ item, onUpdateStatus, isUpdating }) => {
 };
 
 const AvailabilityBar = ({ day, booked, total }) => {
-  // Nếu chưa có API tính tổng slot, ta giả định capacity là max(booked, 10) để hiển thị đẹp
   const capacity = Math.max(booked, 10); 
   const percentage = total > 0 ? (booked / total) * 100 : (booked / capacity) * 100;
   
@@ -164,7 +189,6 @@ const AvailabilityBar = ({ day, booked, total }) => {
 
 const PerformanceWidget = ({ stats }) => {
   const { completedDay, completedWeek, completedMonth } = stats;
-  // Giả lập targets (Vì chưa có API Setting KPI)
   const targets = { day: 8, week: 40, month: 150 };
   
   return (
@@ -216,7 +240,7 @@ const PerformanceWidget = ({ stats }) => {
 
 // --- MAIN LAYOUT COMPONENT ---
 
-export default function App() {
+export default function DoctorDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
@@ -286,7 +310,7 @@ export default function App() {
   const fetchApi = useCallback(async (url, options = {}) => {
     const response = await fetch(url, {
         ...options,
-        credentials: 'include', // QUAN TRỌNG: Gửi cookie session
+        credentials: 'include', 
         headers: {
             ...options.headers,
         },
@@ -319,7 +343,6 @@ export default function App() {
     try {
         const data = await fetchApi(API_PROFILE_URL, { method: 'GET' });
         if (data && data.data) {
-            // Xử lý dữ liệu chuyên khoa (nếu trả về mảng)
             let specName = "Đa khoa";
             if (data.data.allSpecializations && data.data.selectedSpecializationIds) {
                  const specs = data.data.allSpecializations
@@ -342,7 +365,6 @@ export default function App() {
         }
     } catch (err) {
         console.warn("Profile fetch error:", err);
-        // Không block app nếu lỗi profile, chỉ hiện fallback
     }
   }, [fetchApi]);
 
@@ -355,7 +377,6 @@ export default function App() {
       
       const apps = data.data?.appointments || [];
       
-      // Sort by Date then Time DESC (Newest first)
       const sortedApps = apps.sort((a, b) => {
         const dateA = new Date(`${a.appointmentDate} ${a.appointmentTime}`);
         const dateB = new Date(`${b.appointmentDate} ${b.appointmentTime}`);
@@ -373,7 +394,7 @@ export default function App() {
     }
   }, [fetchApi]);
 
-  // --- DATA PROCESSING (Client-side Calculations) ---
+  // --- DATA PROCESSING ---
   const processData = (data) => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -383,7 +404,6 @@ export default function App() {
     const completedToday = todayApps.filter(app => app.status === 'COMPLETED').length;
     const bookedToday = todayApps.filter(app => app.status === 'BOOKED');
     
-    // Tìm lịch hẹn kế tiếp
     const nowTimeStr = now.toTimeString().substr(0, 5);
     const nextApp = bookedToday
       .filter(app => app.appointmentTime > nowTimeStr)
@@ -392,16 +412,14 @@ export default function App() {
     setTodayStats({
       totalPatients: todayApps.length,
       completed: completedToday,
-      nextAppointment: nextApp ? nextApp.appointmentTime : "Hết lịch",
+      nextAppointment: nextApp ? nextApp.appointmentTime.substring(0, 5) : "Hết lịch",
       pendingRequests: bookedToday.length
     });
 
-    // --- 2. Performance Stats (Completed Counts) ---
-    // Month logic: Check if date string starts with "YYYY-MM"
+    // --- 2. Performance Stats ---
     const currentMonthPrefix = todayStr.substr(0, 7);
     const completedMonth = data.filter(app => app.status === 'COMPLETED' && app.appointmentDate.startsWith(currentMonthPrefix)).length;
     
-    // Week logic: Đơn giản hóa, lấy 7 ngày gần nhất
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
     const completedWeek = data.filter(app => {
@@ -416,23 +434,20 @@ export default function App() {
       completedMonth: completedMonth
     });
 
-    // --- 3. Weekly Availability (Forecast for next 5 days) ---
+    // --- 3. Weekly Availability ---
     const nextDays = [];
     for (let i = 0; i < 5; i++) {
         const d = new Date();
         d.setDate(now.getDate() + i);
         const dateStr = d.toISOString().split('T')[0];
         
-        // Count booked slots for this date
         const bookedCount = data.filter(app => app.appointmentDate === dateStr && (app.status === 'BOOKED' || app.status === 'COMPLETED')).length;
-        
-        // Format day name (e.g. Thứ 2)
         const dayName = new Intl.DateTimeFormat('vi-VN', { weekday: 'long' }).format(d);
         
         nextDays.push({
             day: dayName,
             booked: bookedCount,
-            total: 0 // Chưa có API tổng slot, để 0 để component tự xử lý hiển thị
+            total: 0 
         });
     }
     setWeeklyStats(nextDays);
@@ -465,6 +480,7 @@ export default function App() {
       });
 
       setSuccessMessage(`Đã ${actionLabel} thành công!`);
+      
       // Refresh data without full page reload
       const data = await fetchApi(API_APPOINTMENTS_URL, { method: 'GET' });
       const apps = data.data?.appointments || [];
@@ -535,7 +551,11 @@ export default function App() {
         <div className="container-fluid p-4">
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div>
-              <h2 className="fw-bold text-dark mb-0">{activeTab === 'profile' ? 'Thông Tin Cá Nhân' : 'Dashboard'}</h2>
+              <h2 className="fw-bold text-dark mb-0">
+                {activeTab === 'profile' ? 'Thông Tin Cá Nhân' : 
+                 activeTab === 'patients' ? 'Danh sách Bệnh nhân' :
+                 activeTab === 'schedule' ? 'Quản lý Lịch làm việc' : 'Dashboard'}
+              </h2>
               <p className="text-muted mb-0">Xin chào, {doctorProfile?.fullName || "Bác sĩ"}</p>
             </div>
             {activeTab === 'dashboard' && (
@@ -548,9 +568,13 @@ export default function App() {
           {error && <div className="alert alert-danger shadow-sm border-0"><i className="fas fa-exclamation-triangle me-2"></i>{error}</div>}
           {successMessage && <div className="alert alert-success shadow-sm border-0"><i className="fas fa-check-circle me-2"></i>{successMessage}</div>}
 
-          {/* Conditional Rendering for Dashboard or Profile */}
+          {/* Conditional Rendering */}
           {activeTab === 'profile' ? (
               <DoctorProfiles profile={doctorProfile} />
+          ) : activeTab === 'patients' ? (
+              <DoctorAppointmentList />
+          ) : activeTab === 'schedule' ? (
+              <DoctorAvailabilityManager />
           ) : activeTab === 'dashboard' ? (
               <>
                 {/* Row 1: Summary Cards */}
@@ -638,12 +662,10 @@ export default function App() {
 
                     {/* Right Column: Stats & Availability */}
                     <div className="col-lg-4">
-                    {/* Performance */}
                     <div className="mb-4">
                         <PerformanceWidget stats={performanceStats} />
                     </div>
 
-                    {/* Weekly Availability */}
                     <div className="card border-0 shadow-sm">
                         <div className="card-header bg-white py-3">
                         <h5 className="mb-0 fw-bold">Lịch Trình (5 ngày tới)</h5>

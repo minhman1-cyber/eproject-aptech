@@ -22,6 +22,9 @@ import Footer from './components/Footer';
 import AboutUs from './pages/AboutUs';
 import DoctorDashboard from './pages/DoctorDashboard';
 import DoctorDash from './pages/DoctorDash';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminDash from './pages/AdminDash';
+import PatientDashboard from './pages/PatientDashboard';
 
 function App() {
   
@@ -109,8 +112,11 @@ function App() {
           <Route path='/qualificationManager' element={< AdminQualificationManager />} />
           <Route path='/changePass' element={< ChangePasswordModal />} />
           <Route path='/aboutus' element={< AboutUs />} />
-          <Route path='/doctor/dashboard2' element={< DoctorDashboard />} />
-          <Route path='/doctor/dashboard' element={< DoctorDash />} />
+          <Route path='/doctor/dashboard' element={< DoctorDashboard />} />
+          <Route path='/doctor/dashboard2' element={< DoctorDash />} />
+          <Route path='/admin/dashboard' element={< AdminDashboard />} />
+          <Route path='/admin/dashboard2' element={< AdminDash />} />
+          <Route path='/patient/dashboard' element={< PatientDashboard />} />
         </Routes>
       </div>
       <Footer></Footer>

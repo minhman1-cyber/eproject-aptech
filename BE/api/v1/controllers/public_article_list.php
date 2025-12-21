@@ -3,7 +3,9 @@
 ob_start(); 
 session_start();
 
+// ==============================
 // HÀM DEBUG & BẮT LỖI JSON
+// ==============================
 function debug_exit($e = null) {
     $buffer = ob_get_contents();
     if (ob_get_level() > 0) { ob_end_clean(); }
@@ -45,11 +47,10 @@ header("Access-Control-Allow-Credentials: true");
 header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: GET"); 
 
-// ===================================
+// ==============================
 // LOAD MODELS & DB
-// ===================================
+// ==============================
 try {
-    // Không cần kiểm tra vai trò, chỉ cần người dùng đã đăng nhập (hoặc không)
     require_once '../config/database.php';
     require_once '../models/MedicalArticle.php'; 
     
@@ -62,20 +63,21 @@ try {
     debug_exit($e);
 }
 
-// ===================================
-// GET: Lấy danh sách Bài viết
-// ===================================
+// ==============================
+// GET: Lấy danh sách Bài viết Public
+// ==============================
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
-        // Hàm getAll() đã được định nghĩa để lấy tên tác giả
-        $articles = $articleModel->getAll(); 
+        // Lấy danh sách bài viết ĐÃ XUẤT BẢN (PUBLISHED)
+        // Kèm theo các trường mới: thumbnail, subtitle
+        $articles = $articleModel->getPublished(); 
         
-        // Cần lấy danh sách categories (Giả định lấy từ một nguồn cố định nếu không có bảng categories riêng)
+        // Danh sách categories cố định (hoặc lấy từ DB nếu có bảng riêng)
         $categories = [
             ['value' => 'NEWS', 'label' => 'Tin tức Y tế'],
             ['value' => 'DISEASE', 'label' => 'Bệnh lý'],
             ['value' => 'PREVENTION', 'label' => 'Phòng bệnh'],
-            ['value' => 'CURE', 'label' => 'Cách chữa'],
+            ['value' => 'CURE', 'label' => 'Điều trị'],
         ];
 
         http_response_code(200);
@@ -93,9 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
 }
 
-// ===================================
-// DEFAULT — METHOD NOT ALLOWED
-// ===================================
+// ==============================
+// DEFAULT
+// ==============================
 http_response_code(405);
 echo json_encode(["message" => "Method không được hỗ trợ."]);
 exit;
