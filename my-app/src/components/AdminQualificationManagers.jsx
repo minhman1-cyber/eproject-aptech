@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom'; // Giả sử bạn dùng react-router-dom
+import { Link } from 'react-router-dom'; // Assuming you use react-router-dom
 
-// URL API Backend
+// Backend API URL
 const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
 const API_QUAL_VERIFICATION_URL = API_BASE_URL + 'admin_qual_verification.php';
 
-// Cấu hình phân trang mặc định
+// Default Pagination Configuration
 const DEFAULT_ITEMS_PER_PAGE = 10;
 
 // =======================================================
-// HÀM FETCH API CHUNG
+// SHARED FETCH API HOOK
 // =======================================================
 const useFetchApi = () => {
     return useCallback(async (url, options = {}) => {
@@ -23,28 +23,28 @@ const useFetchApi = () => {
         });
 
         if (response.status === 401) {
-            throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.");
+            throw new Error("Session expired. Please login again.");
         }
         
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = data.message || 'Lỗi hệ thống không xác định.';
+                const errorMessage = data.message || 'Unknown system error.';
                 throw new Error(errorMessage);
             }
             return data;
         }
         
         if (!response.ok) {
-            throw new Error('Thao tác thất bại (Lỗi Server).');
+            throw new Error('Operation failed (Server Error).');
         }
         return {};
     }, []);
 };
 
 // =======================================================
-// COMPONENT CHÍNH
+// MAIN COMPONENT
 // =======================================================
 
 const AdminQualificationManager = ({ isWidget = false }) => {
@@ -58,10 +58,10 @@ const AdminQualificationManager = ({ isWidget = false }) => {
 
     const fetchApi = useFetchApi();
     
-    // Nếu là widget, chỉ lấy 5 item và không phân trang phức tạp
+    // If widget, only fetch 5 items and use simplified pagination
     const ITEMS_PER_PAGE = isWidget ? 5 : DEFAULT_ITEMS_PER_PAGE;
 
-    // ------------------- TẢI DỮ LIỆU -------------------
+    // ------------------- FETCH DATA -------------------
     const fetchQualifications = useCallback(async () => {
         setError(null);
         setIsLoading(true);
@@ -84,10 +84,10 @@ const AdminQualificationManager = ({ isWidget = false }) => {
         fetchQualifications();
     }, [fetchQualifications]);
 
-    // ------------------- LOGIC HIỂN THỊ -------------------
+    // ------------------- DISPLAY LOGIC -------------------
     const totalPages = Math.ceil(qualifications.length / ITEMS_PER_PAGE);
     
-    // Nếu là widget, luôn hiển thị trang 1
+    // If widget, always show page 1
     const displayPage = isWidget ? 1 : currentPage;
     const startIndex = (displayPage - 1) * ITEMS_PER_PAGE;
     const currentQualifications = qualifications.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -104,17 +104,17 @@ const AdminQualificationManager = ({ isWidget = false }) => {
         }
     };
     
-    // ------------------- LOGIC DUYỆT -------------------
+    // ------------------- VERIFICATION LOGIC -------------------
     const handleVerification = useCallback(async (qualId, status) => {
-        const statusText = status === 1 ? 'DUYỆT' : 'TỪ CHỐI';
+        const statusText = status === 1 ? 'APPROVE' : 'REJECT';
         const statusValue = status === 1 ? 1 : -1;
         
-        if (!window.confirm(`Xác nhận ${statusText} Bằng cấp ID: ${qualId}?`)) {
+        if (!window.confirm(`Confirm ${statusText} Qualification ID: ${qualId}?`)) {
             return;
         }
 
         setIsLoading(true);
-        setSuccessMessage(null); // Reset message local nếu cần
+        setSuccessMessage(null); // Reset local message if needed
 
         try {
             const payload = { id: qualId, status: statusValue };
@@ -124,11 +124,11 @@ const AdminQualificationManager = ({ isWidget = false }) => {
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            // Nếu là widget, ta có thể hiển thị alert nhỏ hoặc cập nhật state cha
+            // If not widget, show success message
             if (!isWidget) {
-                setSuccessMessage(data.message || `Đã ${statusText} bằng cấp thành công.`);
+                setSuccessMessage(data.message || `Qualification ${statusText.toLowerCase()}d successfully.`);
             } else {
-                // Widget thì refresh luôn cho nhanh
+                // If widget, just refresh quickly
                 fetchQualifications();
             }
 
@@ -136,7 +136,7 @@ const AdminQualificationManager = ({ isWidget = false }) => {
 
         } catch (err) {
             if (!isWidget) setError(err.message);
-            else alert(`Lỗi: ${err.message}`); // Widget dùng alert cho gọn
+            else alert(`Error: ${err.message}`); // Use alert for widget compactness
         } finally {
             setIsLoading(false);
         }
@@ -144,17 +144,17 @@ const AdminQualificationManager = ({ isWidget = false }) => {
 
     // ------------------- RENDER -------------------
     
-    // Giao diện Widget rút gọn
+    // Widget View (Simplified)
     if (isWidget) {
         return (
             <div className="card h-100 shadow-sm border-0">
                 <div className="card-header bg-white d-flex justify-content-between align-items-center py-3">
                     <h5 className="mb-0 text-primary fw-bold">
-                        <i className="bi bi-mortarboard-fill me-2"></i>Duyệt Bằng Cấp Mới
+                        <i className="bi bi-mortarboard-fill me-2"></i>New Qualifications
                     </h5>
-                    {/* Link tới trang quản lý đầy đủ */}
+                    {/* Link to full manager page */}
                     <Link to="/admin/qualifications" className="btn btn-sm btn-outline-primary rounded-pill">
-                        Xem tất cả <i className="bi bi-arrow-right"></i>
+                        View All <i className="bi bi-arrow-right"></i>
                     </Link>
                 </div>
                 <div className="card-body p-0">
@@ -162,16 +162,16 @@ const AdminQualificationManager = ({ isWidget = false }) => {
                         <table className="table table-hover mb-0 align-middle">
                             <thead className="table-light text-secondary">
                                 <tr>
-                                    <th className="ps-4">Bác sĩ</th>
-                                    <th>Bằng cấp</th>
-                                    <th className="text-end pe-4">Thao tác</th>
+                                    <th className="ps-4">Doctor</th>
+                                    <th>Qualification</th>
+                                    <th className="text-end pe-4">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {isLoading ? (
-                                    <tr><td colSpan="3" className="text-center py-3">Đang tải...</td></tr>
+                                    <tr><td colSpan="3" className="text-center py-3">Loading...</td></tr>
                                 ) : currentQualifications.length === 0 ? (
-                                    <tr><td colSpan="3" className="text-center py-3 text-muted">Không có yêu cầu nào.</td></tr>
+                                    <tr><td colSpan="3" className="text-center py-3 text-muted">No pending requests.</td></tr>
                                 ) : (
                                     currentQualifications.map(qual => (
                                         <tr key={qual.qual_id}>
@@ -182,14 +182,14 @@ const AdminQualificationManager = ({ isWidget = false }) => {
                                             <td>
                                                 <div className="text-primary">{qual.title}</div>
                                                 <a href={qual.document_url} target="_blank" rel="noreferrer" className="text-decoration-none small text-info">
-                                                    <i className="bi bi-paperclip"></i> Xem file
+                                                    <i className="bi bi-paperclip"></i> View File
                                                 </a>
                                             </td>
                                             <td className="text-end pe-4">
-                                                <button onClick={() => handleVerification(qual.qual_id, 1)} className="btn btn-sm btn-success me-1" title="Duyệt">
+                                                <button onClick={() => handleVerification(qual.qual_id, 1)} className="btn btn-sm btn-success me-1" title="Approve">
                                                     <i className="bi bi-check-lg">✔</i>
                                                 </button>
-                                                <button onClick={() => handleVerification(qual.qual_id, -1)} className="btn btn-sm btn-outline-danger" title="Từ chối">
+                                                <button onClick={() => handleVerification(qual.qual_id, -1)} className="btn btn-sm btn-outline-danger" title="Reject">
                                                     <i className="bi bi-x-lg">X</i>
                                                 </button>
                                             </td>
@@ -204,7 +204,7 @@ const AdminQualificationManager = ({ isWidget = false }) => {
         );
     }
 
-    // Giao diện Đầy đủ (Giữ nguyên logic của bạn nhưng bọc trong div thay vì container nếu muốn flexible hơn)
+    // Full View
     return (
         <div className="container-fluid py-4">
 
@@ -216,12 +216,12 @@ const AdminQualificationManager = ({ isWidget = false }) => {
                     <input
                         type="text"
                         className="form-control me-2"
-                        placeholder="Tìm kiếm theo Tên Bác sĩ / Email"
+                        placeholder="Search by Doctor Name / Email"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                     <button type="submit" className="btn btn-primary">
-                        <i className="bi bi-search"></i> Tìm
+                        <i className="bi bi-search"></i> Search
                     </button>
                 </form>
 
@@ -230,19 +230,19 @@ const AdminQualificationManager = ({ isWidget = false }) => {
                         <thead className="table-light">
                             <tr>
                                 <th>ID</th>
-                                <th>Bác sĩ</th>
+                                <th>Doctor</th>
                                 <th>Email</th>
-                                <th>Tên Bằng cấp</th>
-                                <th>Tổ chức / Năm</th>
+                                <th>Degree Title</th>
+                                <th>Institution / Year</th>
                                 <th>File</th>
-                                <th>Hành động</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
-                                <tr><td colSpan="7" className="text-center py-4">Đang tải dữ liệu...</td></tr>
+                                <tr><td colSpan="7" className="text-center py-4">Loading data...</td></tr>
                             ) : currentQualifications.length === 0 ? (
-                                <tr><td colSpan="7" className="text-center py-4 text-muted">Không có dữ liệu.</td></tr>
+                                <tr><td colSpan="7" className="text-center py-4 text-muted">No data found.</td></tr>
                             ) : (
                                 currentQualifications.map(qual => (
                                     <tr key={qual.qual_id}>
@@ -256,15 +256,15 @@ const AdminQualificationManager = ({ isWidget = false }) => {
                                         <td>{qual.institution} ({qual.year_completed})</td>
                                         <td>
                                             <a href={qual.document_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-info">
-                                                <i className="bi bi-download"></i> Xem
+                                                <i className="bi bi-download"></i> View
                                             </a>
                                         </td>
                                         <td>
                                             <button className="btn btn-sm btn-success me-2" onClick={() => handleVerification(qual.qual_id, 1)}>
-                                                Duyệt
+                                                Approve
                                             </button>
                                             <button className="btn btn-sm btn-danger" onClick={() => handleVerification(qual.qual_id, -1)}>
-                                                Từ chối
+                                                Reject
                                             </button>
                                         </td>
                                     </tr>
@@ -278,7 +278,7 @@ const AdminQualificationManager = ({ isWidget = false }) => {
                     <nav className="mt-4 d-flex justify-content-center">
                         <ul className="pagination">
                             <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                                <button className="page-link" onClick={() => handlePageChange(currentPage - 1)}>Trước</button>
+                                <button className="page-link" onClick={() => handlePageChange(currentPage - 1)}>Previous</button>
                             </li>
                             {[...Array(totalPages)].map((_, index) => (
                                 <li key={index} className={`page-item ${currentPage === index + 1 ? 'active' : ''}`}>
@@ -286,7 +286,7 @@ const AdminQualificationManager = ({ isWidget = false }) => {
                                 </li>
                             ))}
                             <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                                <button className="page-link" onClick={() => handlePageChange(currentPage + 1)}>Sau</button>
+                                <button className="page-link" onClick={() => handlePageChange(currentPage + 1)}>Next</button>
                             </li>
                         </ul>
                     </nav>

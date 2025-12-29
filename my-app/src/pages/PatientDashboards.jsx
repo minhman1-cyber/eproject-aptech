@@ -1,25 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-// --- MÔI TRƯỜNG DEV LOCAL: BỎ COMMENT CÁC DÒNG DƯỚI ĐỂ SỬ DỤNG FILE THẬT ---
+// --- LOCAL DEV ENVIRONMENT: UNCOMMENT BELOW LINES TO USE REAL FILES ---
 import PatientAppointmentList from '../components/PatientAppointmentList';
 import PatientAppointmentBookers from '../components/PatientAppointmentBookers';
-// import PatientProfile from '../components/PatientProfiles'; // Đã tích hợp trực tiếp bên dưới
+// import PatientProfile from '../components/PatientProfiles'; // Integrated directly below
 
 // =======================================================
-// 1. CẤU HÌNH API
+// 1. API CONFIGURATION
 // =======================================================
 const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
 const API_PROFILE_URL = API_BASE_URL + 'patient_profile.php';
 const API_AVATAR_UPLOAD_URL = 'http://localhost:8888/api/v1/upload/patient_avatar.php'; 
-const API_APPOINTMENTS_URL = API_BASE_URL + 'patient_appointment_list.php'; // API lấy lịch hẹn
+const API_APPOINTMENTS_URL = API_BASE_URL + 'patient_appointment_list.php'; // Appointment list API
 
-const dummyCities = [{ id: 1, name: 'Hồ Chí Minh' }, { id: 2, name: 'Hà Nội' }];
+const dummyCities = [{ id: 1, name: 'Ho Chi Minh City' }, { id: 2, name: 'Ha Noi' }];
 
 // =======================================================
 // 2. HELPER & HOOKS
 // =======================================================
 
-// Hàm fetch API chung
+// Generic fetch API hook
 const useFetchApi = () => {
     return useCallback(async (url, options = {}) => {
         const response = await fetch(url, {
@@ -31,44 +31,44 @@ const useFetchApi = () => {
             },
         });
 
-        if (response.status === 401) throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.");
+        if (response.status === 401) throw new Error("Session expired. Please login again.");
         
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
-            if (!response.ok) throw new Error(data.message || 'Lỗi hệ thống không xác định.');
+            if (!response.ok) throw new Error(data.message || 'Unknown system error.');
             return data;
         }
-        if (!response.ok) throw new Error('Thao tác thất bại (Lỗi Server).');
+        if (!response.ok) throw new Error('Operation failed (Server Error).');
         return {};
     }, []);
 };
 
-// Component hiển thị trạng thái (Badge)
+// Status Badge Component
 const StatusBadge = ({ status }) => {
     let color = 'secondary';
     let text = status;
     let icon = 'question-circle';
     
     switch (status) {
-        case 'BOOKED': color = 'primary'; text = 'Đã đặt'; icon = 'bookmark-check'; break;
-        case 'RESCHEDULED': color = 'info'; text = 'Đã đổi lịch'; icon = 'arrow-repeat'; break;
-        case 'CONFIRMED': color = 'success'; text = 'Đã xác nhận'; icon = 'check-circle'; break; // Giữ lại nếu cần
-        case 'PENDING': color = 'warning'; text = 'Chờ xác nhận'; icon = 'clock'; break;       // Giữ lại nếu cần
-        case 'CANCELLED': color = 'danger'; text = 'Đã hủy'; icon = 'times-circle'; break;
-        case 'COMPLETED': color = 'success'; text = 'Đã hoàn thành'; icon = 'file-medical-alt'; break;
+        case 'BOOKED': color = 'primary'; text = 'Booked'; icon = 'bookmark-check'; break;
+        case 'RESCHEDULED': color = 'info'; text = 'Rescheduled'; icon = 'arrow-repeat'; break;
+        case 'CONFIRMED': color = 'success'; text = 'Confirmed'; icon = 'check-circle'; break;
+        case 'PENDING': color = 'warning'; text = 'Pending'; icon = 'clock'; break;
+        case 'CANCELLED': color = 'danger'; text = 'Cancelled'; icon = 'times-circle'; break;
+        case 'COMPLETED': color = 'success'; text = 'Completed'; icon = 'file-medical-alt'; break;
         default: break;
     }
     return <span className={`badge bg-${color} bg-opacity-10 text-${color} border border-${color} px-2 py-1 rounded-pill`}><i className={`fas fa-${icon} me-1`}></i> {text}</span>;
 };
 
 // =======================================================
-// 3. COMPONENT: PATIENT PROFILES (Hỗ trợ Widget)
+// 3. COMPONENT: PATIENT PROFILES (Supports Widget Mode)
 // =======================================================
 const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
     const [formData, setFormData] = useState({
         id: null,
-        fullName: 'Đang tải...',
+        fullName: 'Loading...',
         email: '',
         phone: '',
         address: '',
@@ -98,7 +98,7 @@ const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
             });
         } catch (err) {
             if(!isWidget) setError(err.message);
-            console.error("Lỗi profile:", err.message);
+            console.error("Profile error:", err.message);
         } finally {
             setIsLoading(false);
         }
@@ -125,7 +125,7 @@ const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
         try {
             const data = await fetchApi(API_AVATAR_UPLOAD_URL, { method: 'POST', body: avatarFormData });
             setFormData(prev => ({...prev, profilePicture: data.newAvatarUrl})); 
-            setSuccessMessage("Avatar đã được cập nhật thành công!");
+            setSuccessMessage("Avatar updated successfully!");
             setAvatarFile(null); 
             return true;
         } catch (err) {
@@ -153,7 +153,7 @@ const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
                 body: JSON.stringify(payload),
                 headers: { 'Content-Type': 'application/json' },
             });
-            setSuccessMessage("Thông tin hồ sơ đã được cập nhật thành công!");
+            setSuccessMessage("Profile information updated successfully!");
         } catch (err) {
             setError(err.message);
         } finally {
@@ -161,7 +161,7 @@ const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
         }
     };
 
-    // --- RENDER CHẾ ĐỘ WIDGET ---
+    // --- RENDER WIDGET MODE ---
     if (isWidget) {
         return (
             <div className="card border-0 shadow-sm mb-4">
@@ -176,13 +176,13 @@ const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
                         />
                         <span className="position-absolute bottom-0 end-0 p-2 bg-success border border-light rounded-circle"></span>
                     </div>
-                    <h5 className="fw-bold mb-1">{isLoading ? 'Đang tải...' : formData.fullName}</h5>
+                    <h5 className="fw-bold mb-1">{isLoading ? 'Loading...' : formData.fullName}</h5>
                     <div className="badge bg-light text-secondary mb-3 border">
-                        <i className="fas fa-id-card me-1"></i> {formData.id ? `BN-${formData.id}` : '...'}
+                        <i className="fas fa-id-card me-1"></i> {formData.id ? `ID-${formData.id}` : '...'}
                     </div>
                     <div className="d-grid gap-2">
                         <button className="btn btn-outline-primary btn-sm" onClick={() => setActiveTab('profile')}>
-                            <i className="fas fa-user-edit me-1"></i> Chỉnh sửa hồ sơ
+                            <i className="fas fa-user-edit me-1"></i> Edit Profile
                         </button>
                     </div>
                 </div>
@@ -190,12 +190,12 @@ const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
         );
     }
 
-    // --- RENDER CHẾ ĐỘ FULL ---
-    if (isLoading && !formData.id) return <div className="text-center py-5"><i className="bi bi-arrow-clockwise fs-3 animate-spin me-2"></i>Đang tải dữ liệu hồ sơ...</div>;
+    // --- RENDER FULL MODE ---
+    if (isLoading && !formData.id) return <div className="text-center py-5"><i className="bi bi-arrow-clockwise fs-3 animate-spin me-2"></i>Loading profile data...</div>;
     
     return (
         <div className="container py-2">
-            <h4 className="fw-bold text-primary mb-4">Hồ sơ cá nhân</h4>
+            <h4 className="fw-bold text-primary mb-4">Personal Profile</h4>
             {error && <div className="alert alert-danger" role="alert">{error}</div>}
             {successMessage && <div className="alert alert-success" role="alert">{successMessage}</div>}
             
@@ -210,7 +210,7 @@ const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
                         />
                         <div className="mb-3">
                             <label htmlFor="avatarUpload" className="btn btn-outline-secondary btn-sm">
-                                <i className="bi bi-camera-fill me-2"></i> Đổi Avatar
+                                <i className="bi bi-camera-fill me-2"></i> Change Avatar
                             </label>
                             <input type="file" id="avatarUpload" name="avatar" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
                         </div>
@@ -219,10 +219,10 @@ const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
 
                 <div className="col-md-8">
                     <form onSubmit={handleSubmit} className="card p-4 shadow-sm border-0">
-                        <h5 className="mb-3 text-secondary">Thông tin chi tiết</h5>
+                        <h5 className="mb-3 text-secondary">Detailed Information</h5>
                         <div className="row mb-3">
                             <div className="col-md-6 mb-3">
-                                <label className="form-label fw-bold small text-muted">Họ tên đầy đủ</label>
+                                <label className="form-label fw-bold small text-muted">Full Name</label>
                                 <input type="text" className="form-control" name="fullName" value={formData.fullName} onChange={handleChange} required />
                             </div>
                             <div className="col-md-6 mb-3">
@@ -230,23 +230,23 @@ const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
                                 <input type="email" className="form-control" name="email" value={formData.email} onChange={handleChange} disabled /> 
                             </div>
                             <div className="col-md-6 mb-3">
-                                <label className="form-label fw-bold small text-muted">Số điện thoại</label>
+                                <label className="form-label fw-bold small text-muted">Phone Number</label>
                                 <input type="tel" className="form-control" name="phone" value={formData.phone} onChange={handleChange} />
                             </div>
                             <div className="col-md-6 mb-3">
-                                <label className="form-label fw-bold small text-muted">Thành phố</label>
+                                <label className="form-label fw-bold small text-muted">City</label>
                                 <select className="form-select" name="cityId" value={formData.cityId} onChange={handleChange} required>
-                                    <option value="">Chọn thành phố...</option>
+                                    <option value="">Select city...</option>
                                     {dummyCities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
                             <div className="col-md-12 mb-3">
-                                <label className="form-label fw-bold small text-muted">Địa chỉ</label>
+                                <label className="form-label fw-bold small text-muted">Address</label>
                                 <input type="text" className="form-control" name="address" value={formData.address} onChange={handleChange} />
                             </div>
                         </div>
                         <button type="submit" className="btn btn-primary" disabled={isLoading}>
-                             {isLoading ? 'Đang lưu...' : 'Cập nhật Thông tin'}
+                             {isLoading ? 'Saving...' : 'Update Information'}
                         </button>
                     </form>
                 </div>
@@ -256,7 +256,7 @@ const PatientProfiles = ({ isWidget = false, setActiveTab }) => {
 };
 
 // =======================================================
-// 4. DASHBOARD HOME (Hiển thị dữ liệu thật)
+// 4. DASHBOARD HOME (Display Real Data)
 // =======================================================
 const DashboardHome = ({ user, setActiveTab }) => {
     const [appointments, setAppointments] = useState([]);
@@ -264,14 +264,14 @@ const DashboardHome = ({ user, setActiveTab }) => {
     const [error, setError] = useState(null);
     const fetchApi = useFetchApi();
 
-    // Tải dữ liệu lịch hẹn thật
+    // Load real appointments
     useEffect(() => {
         const loadAppointments = async () => {
             try {
                 const data = await fetchApi(API_APPOINTMENTS_URL, { method: 'GET' });
                 setAppointments(data.data?.appointments || []);
             } catch (err) {
-                console.error("Lỗi tải lịch hẹn dashboard:", err);
+                console.error("Dashboard appointment fetch error:", err);
                 setError(err.message);
             } finally {
                 setIsLoading(false);
@@ -280,18 +280,18 @@ const DashboardHome = ({ user, setActiveTab }) => {
         loadAppointments();
     }, [fetchApi]);
 
-    // Lọc lịch hẹn sắp tới: (BOOKED hoặc RESCHEDULED) VÀ Thời gian >= Hiện tại
+    // Filter upcoming: (BOOKED or RESCHEDULED) AND Time >= Now
     const upcoming = appointments.filter(a => {
         const isActive = ['BOOKED', 'RESCHEDULED'].includes(a.status);
         if (!isActive) return false;
         
-        // So sánh ngày giờ
+        // Compare date/time
         const appDateTime = new Date(`${a.appointmentDate}T${a.appointmentTime}`);
         const now = new Date();
         return appDateTime >= now;
     }).sort((a, b) => new Date(`${a.appointmentDate}T${a.appointmentTime}`) - new Date(`${b.appointmentDate}T${b.appointmentTime}`));
 
-    // Lấy tối đa 3 lịch hẹn sắp tới để hiển thị
+    // Take max 3 upcoming appointments to display
     const displayUpcoming = upcoming.slice(0, 3);
 
     return (
@@ -299,14 +299,14 @@ const DashboardHome = ({ user, setActiveTab }) => {
             {/* Welcome Banner */}
             <div className="card border-0 shadow-sm mb-4 bg-primary-custom text-white overflow-hidden position-relative">
                 <div className="card-body p-4 position-relative" style={{zIndex: 2}}>
-                    <h2 className="fw-bold">Xin chào! 👋</h2>
-                    <p className="mb-0 opacity-75">Chúc bạn một ngày tốt lành. Đừng quên giữ gìn sức khỏe nhé.</p>
+                    <h2 className="fw-bold">Hello! 👋</h2>
+                    <p className="mb-0 opacity-75">Have a nice day. Don't forget to take care of your health.</p>
                 </div>
                 <i className="fas fa-heartbeat position-absolute" style={{ fontSize: '150px', right: '-20px', bottom: '-40px', opacity: 0.15, transform: 'rotate(-20deg)' }}></i>
             </div>
 
             <div className="row g-4">
-                {/* Cột trái: Widget Profile & Thống kê */}
+                {/* Left Col: Widget Profile & Stats */}
                 <div className="col-lg-4">
                     
                     <PatientProfiles isWidget={true} setActiveTab={setActiveTab} />
@@ -316,11 +316,11 @@ const DashboardHome = ({ user, setActiveTab }) => {
                             <div className="row text-center">
                                 <div className="col-6 border-end">
                                     <h6 className="mb-0 fw-bold text-primary">{appointments.length}</h6>
-                                    <small className="text-muted" style={{fontSize: '0.75rem'}}>Tổng lịch khám</small>
+                                    <small className="text-muted" style={{fontSize: '0.75rem'}}>Total Appointments</small>
                                 </div>
                                 <div className="col-6">
                                     <h6 className="mb-0 fw-bold text-success">{upcoming.length}</h6>
-                                    <small className="text-muted" style={{fontSize: '0.75rem'}}>Sắp tới</small>
+                                    <small className="text-muted" style={{fontSize: '0.75rem'}}>Upcoming</small>
                                 </div>
                             </div>
                         </div>
@@ -329,8 +329,8 @@ const DashboardHome = ({ user, setActiveTab }) => {
                     <div className="card border-0 shadow-sm bg-success text-white" style={{cursor: 'pointer'}} onClick={() => setActiveTab('booking')}>
                         <div className="card-body d-flex align-items-center justify-content-between">
                             <div>
-                                <h6 className="fw-bold mb-1">Đặt lịch khám mới</h6>
-                                <small className="opacity-75">Chọn bác sĩ ngay</small>
+                                <h6 className="fw-bold mb-1">Book New Appointment</h6>
+                                <small className="opacity-75">Choose a doctor now</small>
                             </div>
                             <div className="bg-white bg-opacity-25 rounded-circle d-flex align-items-center justify-content-center" style={{width: '40px', height: '40px'}}>
                                 <i className="fas fa-plus"></i>
@@ -339,21 +339,21 @@ const DashboardHome = ({ user, setActiveTab }) => {
                     </div>
                 </div>
 
-                {/* Cột phải: Lịch sắp tới */}
+                {/* Right Col: Upcoming Schedule */}
                 <div className="col-lg-8">
                     <div className="d-flex justify-content-between align-items-center mb-3">
                         <h5 className="fw-bold text-secondary mb-0">
                             <i className="fas fa-calendar-alt me-2 text-primary"></i>
-                            Lịch khám sắp tới
+                            Upcoming Appointments
                         </h5>
                         {upcoming.length > 0 && (
-                            <button className="btn btn-link btn-sm text-decoration-none" onClick={() => setActiveTab('appointments')}>Xem tất cả</button>
+                            <button className="btn btn-link btn-sm text-decoration-none" onClick={() => setActiveTab('appointments')}>View All</button>
                         )}
                     </div>
                     
                     {isLoading ? (
                         <div className="text-center py-5 text-muted">
-                            <div className="spinner-border spinner-border-sm text-primary me-2"></div> Đang tải lịch hẹn...
+                            <div className="spinner-border spinner-border-sm text-primary me-2"></div> Loading appointments...
                         </div>
                     ) : displayUpcoming.length > 0 ? (
                         displayUpcoming.map((appt, index) => (
@@ -362,17 +362,17 @@ const DashboardHome = ({ user, setActiveTab }) => {
                                     <div className="row align-items-center">
                                         <div className="col-md-2 text-center mb-3 mb-md-0">
                                             <div className="bg-light rounded p-2 border">
-                                                {/* Tách ngày và tháng */}
+                                                {/* Split day and month */}
                                                 <h4 className="mb-0 fw-bold text-primary">{appt.appointmentDate.split('-')[2]}</h4>
-                                                <small className="text-uppercase fw-bold text-muted">Thg {appt.appointmentDate.split('-')[1]}</small>
+                                                <small className="text-uppercase fw-bold text-muted">Mo {appt.appointmentDate.split('-')[1]}</small>
                                             </div>
                                             <div className="mt-1 badge bg-primary">{appt.appointmentTime}</div>
                                         </div>
                                         <div className="col-md-7 mb-3 mb-md-0">
                                             <h6 className="fw-bold mb-1 text-dark">{appt.doctorName}</h6>
-                                            {/* Hiển thị Lý do thay vì Chuyên khoa (vì API không trả về chuyên khoa) */}
+                                            {/* Display Reason instead of Specialization (since API doesn't return it) */}
                                             <p className="text-muted small mb-2 text-truncate">
-                                                <i className="fas fa-notes-medical me-1"></i> Lý do: {appt.reason}
+                                                <i className="fas fa-notes-medical me-1"></i> Reason: {appt.reason}
                                             </p>
                                             <p className="text-secondary small mb-0">
                                                 <i className="fas fa-map-marker-alt me-1"></i> Mediconnect Clinic
@@ -380,7 +380,7 @@ const DashboardHome = ({ user, setActiveTab }) => {
                                         </div>
                                         <div className="col-md-3 text-md-end">
                                             <StatusBadge status={appt.status} />
-                                            {index === 0 && <div className="mt-2 text-muted small"><i className="fas fa-bell text-warning me-1"></i> Sắp diễn ra</div>}
+                                            {index === 0 && <div className="mt-2 text-muted small"><i className="fas fa-bell text-warning me-1"></i> Coming soon</div>}
                                         </div>
                                     </div>
                                 </div>
@@ -390,8 +390,8 @@ const DashboardHome = ({ user, setActiveTab }) => {
                         <div className="card border-0 shadow-sm py-5 text-center">
                             <div className="card-body">
                                 <img src="https://cdn-icons-png.flaticon.com/512/7486/7486831.png" alt="No Data" width="80" className="mb-3 opacity-50" />
-                                <h6 className="text-muted">Bạn không có lịch khám nào sắp tới.</h6>
-                                <button className="btn btn-primary btn-sm mt-2" onClick={() => setActiveTab('booking')}>Đặt lịch ngay</button>
+                                <h6 className="text-muted">You have no upcoming appointments.</h6>
+                                <button className="btn btn-primary btn-sm mt-2" onClick={() => setActiveTab('booking')}>Book Now</button>
                             </div>
                         </div>
                     )}
@@ -409,8 +409,8 @@ const PatientDashboard = () => {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     const [showSidebar, setShowSidebar] = useState(false);
     
-    // User state giả lập cho Header (Profile thật được load trong component con)
-    const [user] = useState({ fullName: 'Bệnh Nhân', avatar: 'https://placehold.co/60x60' });
+    // Mock user state for Header (Real profile is loaded in child component)
+    const [user] = useState({ fullName: 'Patient', avatar: 'https://placehold.co/60x60' });
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -479,15 +479,15 @@ const PatientDashboard = () => {
                     {isMobile && <button className="btn btn-sm btn-light rounded-circle" onClick={toggleSidebar}><i className="fas fa-times"></i></button>}
                 </div>
                 <ul className="nav nav-pills flex-column mb-auto">
-                    <li><button className={`nav-link w-100 text-start ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => {setActiveTab('dashboard'); if(isMobile) toggleSidebar();}}><i className="fas fa-home me-3" style={{width: '20px'}}></i> Tổng quan</button></li>
-                    <li><button className={`nav-link w-100 text-start ${activeTab === 'booking' ? 'active' : ''}`} onClick={() => {setActiveTab('booking'); if(isMobile) toggleSidebar();}}><i className="fas fa-calendar-plus me-3" style={{width: '20px'}}></i> Đặt lịch khám</button></li>
-                    <li><button className={`nav-link w-100 text-start ${activeTab === 'appointments' ? 'active' : ''}`} onClick={() => {setActiveTab('appointments'); if(isMobile) toggleSidebar();}}><i className="fas fa-calendar-alt me-3" style={{width: '20px'}}></i> Lịch sử khám</button></li>
-                    <li><button className={`nav-link w-100 text-start ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => {setActiveTab('profile'); if(isMobile) toggleSidebar();}}><i className="fas fa-user-circle me-3" style={{width: '20px'}}></i> Tài khoản</button></li>
+                    <li><button className={`nav-link w-100 text-start ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => {setActiveTab('dashboard'); if(isMobile) toggleSidebar();}}><i className="fas fa-home me-3" style={{width: '20px'}}></i> Dashboard</button></li>
+                    <li><button className={`nav-link w-100 text-start ${activeTab === 'booking' ? 'active' : ''}`} onClick={() => {setActiveTab('booking'); if(isMobile) toggleSidebar();}}><i className="fas fa-calendar-plus me-3" style={{width: '20px'}}></i> Book Appointment</button></li>
+                    <li><button className={`nav-link w-100 text-start ${activeTab === 'appointments' ? 'active' : ''}`} onClick={() => {setActiveTab('appointments'); if(isMobile) toggleSidebar();}}><i className="fas fa-calendar-alt me-3" style={{width: '20px'}}></i> Appointment History</button></li>
+                    <li><button className={`nav-link w-100 text-start ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => {setActiveTab('profile'); if(isMobile) toggleSidebar();}}><i className="fas fa-user-circle me-3" style={{width: '20px'}}></i> Account</button></li>
                 </ul>
                 <hr />
                 <div className="d-flex align-items-center px-2 pb-2">
-                    <small className="text-muted">Phiên bản 1.0.0</small>
-                    <a href="#" className="ms-auto text-danger fw-bold small text-decoration-none">Đăng xuất</a>
+                    <small className="text-muted">Version 1.0.0</small>
+                    <a href="#" className="ms-auto text-danger fw-bold small text-decoration-none">Logout</a>
                 </div>
             </div>
 
@@ -507,7 +507,7 @@ const PatientDashboard = () => {
                     <header className="bg-white shadow-sm py-3 px-4 d-flex justify-content-between align-items-center sticky-top">
                         <div className="d-flex align-items-center">
                             <h5 className="mb-0 fw-bold text-secondary">
-                                {activeTab === 'dashboard' ? 'Trang chủ' : activeTab === 'booking' ? 'Đặt lịch khám' : activeTab === 'appointments' ? 'Lịch sử khám' : 'Cài đặt tài khoản'}
+                                {activeTab === 'dashboard' ? 'Home' : activeTab === 'booking' ? 'Book Appointment' : activeTab === 'appointments' ? 'Appointment History' : 'Account Settings'}
                             </h5>
                         </div>
                     </header>

@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
-// URL API Backend
+// Backend API URL
 const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
 const API_QUAL_VERIFICATION_URL = API_BASE_URL + 'admin_qual_verification.php';
 
-// Cấu hình phân trang
+// Pagination Configuration
 const ITEMS_PER_PAGE = 10;
 
 // =======================================================
-// HÀM FETCH API CHUNG (Sử dụng lại từ các files Admin)
+// SHARED FETCH API HOOK (Reused from Admin files)
 // =======================================================
 const useFetchApi = () => {
     return useCallback(async (url, options = {}) => {
@@ -22,21 +22,21 @@ const useFetchApi = () => {
         });
 
         if (response.status === 401) {
-            throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại với vai trò Admin.");
+            throw new Error("Session expired. Please login again as Admin.");
         }
         
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = data.message || 'Lỗi hệ thống không xác định.';
+                const errorMessage = data.message || 'Unknown system error.';
                 throw new Error(errorMessage);
             }
             return data;
         }
         
         if (!response.ok) {
-            throw new Error('Thao tác thất bại (Lỗi Server).');
+            throw new Error('Operation failed (Server Error).');
         }
         return {};
     }, []);
@@ -44,11 +44,11 @@ const useFetchApi = () => {
 
 
 // =======================================================
-// COMPONENT CHÍNH: QUẢN LÝ DUYỆT BẰNG CẤP
+// MAIN COMPONENT: QUALIFICATION VERIFICATION MANAGER
 // =======================================================
 
 const AdminQualificationManager = () => {
-    const [qualifications, setQualifications] = useState([]); // Danh sách bằng cấp chờ duyệt
+    const [qualifications, setQualifications] = useState([]); // List of pending qualifications
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
@@ -59,12 +59,12 @@ const AdminQualificationManager = () => {
     const fetchApi = useFetchApi();
     const ITEMS_PER_PAGE = 10; 
 
-    // ------------------- TẢI DỮ LIỆU CHÍNH (Bằng cấp chờ duyệt) -------------------
+    // ------------------- FETCH MAIN DATA (Pending Qualifications) -------------------
     const fetchQualifications = useCallback(async () => {
         setError(null);
         setIsLoading(true);
         try {
-            // Thêm tham số tìm kiếm vào URL GET
+            // Add search parameter to GET URL
             const searchUrl = searchTerm 
                 ? `${API_QUAL_VERIFICATION_URL}?search=${encodeURIComponent(searchTerm)}` 
                 : API_QUAL_VERIFICATION_URL;
@@ -85,9 +85,9 @@ const AdminQualificationManager = () => {
     }, [fetchQualifications]);
 
 
-    // ------------------- LOGIC TÌM KIẾM & PHÂN TRANG -------------------
+    // ------------------- SEARCH & PAGINATION LOGIC -------------------
     
-    // Tìm kiếm đã được xử lý ở Backend, chỉ cần phân trang ở Frontend
+    // Search is handled by Backend, Frontend only handles pagination
     const totalPages = Math.ceil(qualifications.length / ITEMS_PER_PAGE);
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const currentQualifications = qualifications.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -95,7 +95,7 @@ const AdminQualificationManager = () => {
     const handleSearchSubmit = (e) => {
         e.preventDefault();
         setCurrentPage(1); 
-        fetchQualifications(); // Tải lại dữ liệu từ Backend theo searchTerm mới
+        fetchQualifications(); // Reload data from Backend with new searchTerm
     };
 
     const handlePageChange = (page) => {
@@ -104,13 +104,13 @@ const AdminQualificationManager = () => {
         }
     };
     
-    // ------------------- LOGIC HÀNH ĐỘNG DUYỆT -------------------
+    // ------------------- VERIFICATION ACTION LOGIC -------------------
 
     const handleVerification = useCallback(async (qualId, status) => {
-        const statusText = status === 1 ? 'DUYỆT' : 'TỪ CHỐI';
+        const statusText = status === 1 ? 'APPROVE' : 'REJECT';
         const statusValue = status === 1 ? 1 : -1; // 1: ACCEPTED, -1: REJECTED
         
-        if (!window.confirm(`Xác nhận ${statusText} Bằng cấp ID: ${qualId}?`)) {
+        if (!window.confirm(`Confirm ${statusText} Qualification ID: ${qualId}?`)) {
             return;
         }
 
@@ -130,8 +130,8 @@ const AdminQualificationManager = () => {
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            setSuccessMessage(data.message || `Đã ${statusText} bằng cấp thành công.`);
-            fetchQualifications(); // Tải lại danh sách sau khi cập nhật
+            setSuccessMessage(data.message || `Qualification ${status === 1 ? 'approved' : 'rejected'} successfully.`);
+            fetchQualifications(); // Reload list after update
 
         } catch (err) {
             setError(err.message);
@@ -144,49 +144,49 @@ const AdminQualificationManager = () => {
     // ------------------- RENDER -------------------
     return (
         <div className="container py-5">
-            <h2 className="mb-4 text-primary">✅ Duyệt Bằng cấp Bác sĩ (Admin)</h2>
+            <h2 className="mb-4 text-primary">✅ Doctor Qualification Verification (Admin)</h2>
 
             {error && <div className="alert alert-danger" role="alert">{error}</div>}
             {successMessage && <div className="alert alert-success" role="alert">{successMessage}</div>}
 
             <div className="card shadow-sm p-4">
                 
-                {/* THANH TÌM KIẾM */}
+                {/* SEARCH BAR */}
                 <form onSubmit={handleSearchSubmit} className="d-flex flex-grow-1 mb-4">
                     <input
                         type="text"
                         className="form-control me-2"
-                        placeholder="Tìm kiếm theo Tên Bác sĩ / Email"
+                        placeholder="Search by Doctor Name / Email"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                     <button type="submit" className="btn btn-primary">
-                        <i className="bi bi-search"></i> Tìm Bác sĩ
+                        <i className="bi bi-search"></i> Search Doctor
                     </button>
                 </form>
 
-                {/* Bảng Danh sách Bằng cấp */}
+                {/* Qualification List Table */}
                 <div className="table-responsive">
                     <table className="table table-hover align-middle">
                         <thead className="table-light">
                             <tr>
-                                <th>ID Bằng cấp</th>
-                                <th>Bác sĩ</th>
+                                <th>Qual ID</th>
+                                <th>Doctor</th>
                                 <th>Email</th>
-                                <th>Tên Bằng cấp</th>
-                                <th>Tổ chức / Năm</th>
+                                <th>Degree Title</th>
+                                <th>Institution / Year</th>
                                 <th>File</th>
-                                <th>Hành động</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center py-4 text-muted">Đang tải dữ liệu...</td>
+                                    <td colSpan="7" className="text-center py-4 text-muted">Loading data...</td>
                                 </tr>
                             ) : currentQualifications.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center py-4 text-muted">Không có bằng cấp nào đang chờ duyệt.</td>
+                                    <td colSpan="7" className="text-center py-4 text-muted">No qualifications pending verification.</td>
                                 </tr>
                             ) : (
                                 currentQualifications.map(qual => (
@@ -194,14 +194,14 @@ const AdminQualificationManager = () => {
                                         <td>{qual.qual_id}</td>
                                         <td>
                                             <div className="fw-bold">{qual.doctor_name}</div>
-                                            <small className="text-muted">ID Doc: {qual.doctor_id}</small>
+                                            <small className="text-muted">Doc ID: {qual.doctor_id}</small>
                                         </td>
                                         <td>{qual.email}</td>
                                         <td>{qual.title}</td>
                                         <td>{qual.institution} ({qual.year_completed})</td>
                                         <td className="text-nowrap">
                                             <a href={qual.document_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-info">
-                                                <i className="bi bi-file-earmark-arrow-down"></i> Tải về
+                                                <i className="bi bi-file-earmark-arrow-down"></i> Download
                                             </a>
                                         </td>
                                         <td className='text-nowrap'>
@@ -210,14 +210,14 @@ const AdminQualificationManager = () => {
                                                 onClick={() => handleVerification(qual.qual_id, 1)}
                                                 disabled={isLoading}
                                             >
-                                                Duyệt (Accept)
+                                                Approve (Accept)
                                             </button>
                                             <button 
                                                 className={`btn btn-sm btn-danger`}
                                                 onClick={() => handleVerification(qual.qual_id, -1)}
                                                 disabled={isLoading}
                                             >
-                                                Từ chối (Reject)
+                                                Reject
                                             </button>
                                         </td>
                                     </tr>
@@ -227,12 +227,12 @@ const AdminQualificationManager = () => {
                     </table>
                 </div>
 
-                {/* Phân trang */}
+                {/* Pagination */}
                 {totalPages > 1 && (
                     <nav className="mt-4 d-flex justify-content-center">
                         <ul className="pagination shadow-sm">
                             <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                                <button className="page-link" onClick={() => handlePageChange(currentPage - 1)}>Trước</button>
+                                <button className="page-link" onClick={() => handlePageChange(currentPage - 1)}>Previous</button>
                             </li>
                             {[...Array(totalPages)].map((_, index) => (
                                 <li key={index} className={`page-item ${currentPage === index + 1 ? 'active' : ''}`}>
@@ -242,7 +242,7 @@ const AdminQualificationManager = () => {
                                 </li>
                             ))}
                             <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                                <button className="page-link" onClick={() => handlePageChange(currentPage + 1)}>Sau</button>
+                                <button className="page-link" onClick={() => handlePageChange(currentPage + 1)}>Next</button>
                             </li>
                         </ul>
                     </nav>

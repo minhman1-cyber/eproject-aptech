@@ -106,29 +106,33 @@ class Patient {
         return $row ? (int)$row['id'] : null;
     }
 
-    // HÀM MỚI: Lấy chi tiết bệnh nhân dựa trên mảng IDs (ĐÃ THÊM)
     public function getPatientDetailsByIds(array $patientIds) {
-        if (empty($patientIds)) return [];
-        
-        $placeholders = implode(',', array_fill(0, count($patientIds), '?'));
-        
-        // Truy vấn bảng users để lấy full_name, vì full_name thường là thông tin hiển thị
-        $query = "SELECT p.id, u.full_name, p.user_id 
-                  FROM " . $this->table . " p
-                  JOIN " . $this->user_table . " u ON p.user_id = u.id
-                  WHERE p.id IN ({$placeholders})";
-        
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute($patientIds);
-        
-        // Trả về mảng key-value (patient_id => details)
-        $details = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $result = [];
-        foreach ($details as $detail) {
-            $result[$detail['id']] = $detail;
-        }
-        return $result;
+    if (empty($patientIds)) return [];
+
+    // Reset lại key của mảng để đảm bảo tuần tự (0, 1, 2...)
+    // Đây là dòng quan trọng nhất để sửa lỗi của bạn
+    $patientIds = array_values($patientIds); 
+    
+    // Tạo chuỗi dấu hỏi ?,?,?
+    $placeholders = implode(',', array_fill(0, count($patientIds), '?'));
+    
+    $query = "SELECT p.id, u.full_name, p.user_id 
+              FROM " . $this->table . " p
+              JOIN " . $this->user_table . " u ON p.user_id = u.id
+              WHERE p.id IN ({$placeholders})";
+    
+    $stmt = $this->conn->prepare($query);
+    
+    // Bây giờ mảng đã sạch (index 0,1,2...), execute sẽ chạy ngon lành
+    $stmt->execute($patientIds);
+    
+    $details = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $result = [];
+    foreach ($details as $detail) {
+        $result[$detail['id']] = $detail;
     }
+    return $result;
+}
 
     public function getPatientDetailsById($patientId) {
         // Truy vấn LEFT JOIN giữa users và patients để lấy thông tin chi tiết

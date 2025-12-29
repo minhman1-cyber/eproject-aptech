@@ -23,7 +23,7 @@ const Sidebar = ({ activeTab, setActiveTab, profile }) => (
           className={`nav-link w-100 text-start ${activeTab === 'dashboard' ? 'active bg-primary-custom' : 'link-dark'}`}
           onClick={() => setActiveTab('dashboard')}
         >
-          <i className="fas fa-home me-2"></i> Tổng quan
+          <i className="fas fa-home me-2"></i> Dashboard
         </button>
       </li>
       <li>
@@ -31,7 +31,7 @@ const Sidebar = ({ activeTab, setActiveTab, profile }) => (
           className={`nav-link w-100 text-start ${activeTab === 'patients' ? 'active bg-primary-custom' : 'link-dark'}`}
           onClick={() => setActiveTab('patients')}
         >
-          <i className="fas fa-user-injured me-2"></i> Bệnh nhân
+          <i className="fas fa-user-injured me-2"></i> Patients
         </button>
       </li>
       <li>
@@ -39,7 +39,7 @@ const Sidebar = ({ activeTab, setActiveTab, profile }) => (
           className={`nav-link w-100 text-start ${activeTab === 'schedule' ? 'active bg-primary-custom' : 'link-dark'}`}
           onClick={() => setActiveTab('schedule')}
         >
-          <i className="fas fa-calendar-alt me-2"></i> Lịch làm việc
+          <i className="fas fa-calendar-alt me-2"></i> Schedule
         </button>
       </li>
     </ul>
@@ -50,7 +50,7 @@ const Sidebar = ({ activeTab, setActiveTab, profile }) => (
         className={`d-flex align-items-center p-2 rounded ${activeTab === 'profile' ? 'bg-light border' : 'hover-bg-light'}`}
         style={{ cursor: 'pointer', transition: 'all 0.2s' }}
         onClick={() => setActiveTab('profile')}
-        title="Bấm để xem hồ sơ cá nhân"
+        title="Click to view profile"
     >
       <img 
           src={profile?.profilePicture || "https://via.placeholder.com/150"} 
@@ -59,8 +59,8 @@ const Sidebar = ({ activeTab, setActiveTab, profile }) => (
           className="rounded-circle me-2 object-fit-cover shadow-sm" 
       />
       <div className="d-flex flex-column" style={{ overflow: 'hidden' }}>
-          <strong className="text-truncate text-dark" style={{ maxWidth: '160px' }}>{profile?.fullName || "Bác sĩ"}</strong>
-          <small className="text-muted text-truncate" style={{ fontSize: '0.75rem' }}>{profile?.specialization || "Đang tải..."}</small>
+          <strong className="text-truncate text-dark" style={{ maxWidth: '160px' }}>{profile?.fullName || "Doctor"}</strong>
+          <small className="text-muted text-truncate" style={{ fontSize: '0.75rem' }}>{profile?.specialization || "Loading..."}</small>
       </div>
       <div className="ms-auto text-muted">
           <i className="fas fa-chevron-right small"></i>
@@ -102,10 +102,10 @@ const AppointmentItem = ({ item, onUpdateStatus, isUpdating }) => {
 
   const getStatusInfo = (status) => {
     switch (status) {
-      case 'BOOKED': return { label: 'Sắp tới', color: 'primary', icon: 'fa-clock' };
-      case 'COMPLETED': return { label: 'Đã khám', color: 'success', icon: 'fa-check-circle' };
-      case 'CANCELLED': return { label: 'Đã hủy', color: 'danger', icon: 'fa-times-circle' };
-      case 'RESCHEDULED': return { label: 'Dời lịch', color: 'info', icon: 'fa-calendar-alt' };
+      case 'BOOKED': return { label: 'Upcoming', color: 'primary', icon: 'fa-clock' };
+      case 'COMPLETED': return { label: 'Completed', color: 'success', icon: 'fa-check-circle' };
+      case 'CANCELLED': return { label: 'Cancelled', color: 'danger', icon: 'fa-times-circle' };
+      case 'RESCHEDULED': return { label: 'Rescheduled', color: 'info', icon: 'fa-calendar-alt' };
       default: return { label: status, color: 'secondary', icon: 'fa-question' };
     }
   };
@@ -121,7 +121,7 @@ const AppointmentItem = ({ item, onUpdateStatus, isUpdating }) => {
       </div>
       <div className="flex-grow-1">
         <h6 className="fw-bold mb-1">{item.patientName}</h6>
-        <small className="text-muted d-block"><i className="fas fa-notes-medical me-1"></i> Lý do: {item.reason || 'Khám tổng quát'}</small>
+        <small className="text-muted d-block"><i className="fas fa-notes-medical me-1"></i> Reason: {item.reason || 'General Checkup'}</small>
       </div>
       
       <div className="d-flex align-items-center gap-2">
@@ -137,7 +137,7 @@ const AppointmentItem = ({ item, onUpdateStatus, isUpdating }) => {
                 type="button" 
                 onClick={() => setIsOpen(!isOpen)}
                 disabled={isUpdating}
-                title="Hành động"
+                title="Actions"
             >
               <i className="fas fa-ellipsis-v text-muted"></i>
             </button>
@@ -147,13 +147,13 @@ const AppointmentItem = ({ item, onUpdateStatus, isUpdating }) => {
                 <ul className="dropdown-menu dropdown-menu-end border-0 shadow show" style={{ display: 'block', position: 'absolute', right: 0, zIndex: 1050 }}>
                   <li>
                     <button className="dropdown-item text-success d-flex align-items-center" onClick={() => { setIsOpen(false); onUpdateStatus(item.id, 'COMPLETE'); }}>
-                      <i className="fas fa-check me-2" style={{width: '20px'}}></i> Hoàn thành
+                      <i className="fas fa-check me-2" style={{width: '20px'}}></i> Complete
                     </button>
                   </li>
                   <li><hr className="dropdown-divider" /></li>
                   <li>
                     <button className="dropdown-item text-danger d-flex align-items-center" onClick={() => { setIsOpen(false); onUpdateStatus(item.id, 'CANCEL'); }}>
-                      <i className="fas fa-ban me-2" style={{width: '20px'}}></i> Hủy lịch
+                      <i className="fas fa-ban me-2" style={{width: '20px'}}></i> Cancel
                     </button>
                   </li>
                 </ul>
@@ -178,7 +178,7 @@ const AvailabilityBar = ({ day, booked, total }) => {
     <div className="mb-3">
       <div className="d-flex justify-content-between mb-1">
         <span className="fw-bold text-dark">{day}</span>
-        <span className="small text-muted">{booked} lịch hẹn</span>
+        <span className="small text-muted">{booked} appointments</span>
       </div>
       <div className="progress" style={{ height: '8px' }}>
         <div className={`progress-bar bg-${color}`} role="progressbar" style={{ width: `${percentage}%` }} aria-valuenow={booked} aria-valuemin="0" aria-valuemax={100}></div>
@@ -194,29 +194,29 @@ const PerformanceWidget = ({ stats }) => {
   return (
     <div className="card border-0 shadow-sm">
       <div className="card-header bg-white py-3">
-        <h5 className="mb-0 fw-bold"><i className="fas fa-tachometer-alt text-primary-custom me-2"></i>Hiệu Suất (Ca hoàn thành)</h5>
+        <h5 className="mb-0 fw-bold"><i className="fas fa-tachometer-alt text-primary-custom me-2"></i>Performance (Completed)</h5>
       </div>
       <div className="card-body">
         <div className="row text-center mb-4">
           <div className="col-4 border-end">
             <h3 className="fw-bold text-primary-custom mb-0">{completedDay}</h3>
-            <small className="text-muted">Hôm nay</small>
+            <small className="text-muted">Today</small>
           </div>
           <div className="col-4 border-end">
             <h3 className="fw-bold text-success mb-0">{completedWeek}</h3>
-            <small className="text-muted">Tuần này</small>
+            <small className="text-muted">This Week</small>
           </div>
           <div className="col-4">
             <h3 className="fw-bold text-info mb-0">{completedMonth}</h3>
-            <small className="text-muted">Tháng này</small>
+            <small className="text-muted">This Month</small>
           </div>
         </div>
 
-        <h6 className="text-uppercase text-muted small fw-bold mb-3">Tiến độ mục tiêu</h6>
+        <h6 className="text-uppercase text-muted small fw-bold mb-3">Target Progress</h6>
         
         <div className="mb-3">
           <div className="d-flex justify-content-between small mb-1">
-            <span>Ngày ({completedDay}/{targets.day})</span>
+            <span>Daily ({completedDay}/{targets.day})</span>
             <span>{Math.round((completedDay/targets.day)*100)}%</span>
           </div>
           <div className="progress" style={{ height: '6px' }}>
@@ -226,7 +226,7 @@ const PerformanceWidget = ({ stats }) => {
 
         <div className="mb-3">
           <div className="d-flex justify-content-between small mb-1">
-            <span>Tháng ({completedMonth}/{targets.month})</span>
+            <span>Monthly ({completedMonth}/{targets.month})</span>
             <span>{Math.round((completedMonth/targets.month)*100)}%</span>
           </div>
           <div className="progress" style={{ height: '6px' }}>
@@ -317,20 +317,20 @@ export default function DoctorDashboard() {
     });
 
     if (response.status === 401) {
-        throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.");
+        throw new Error("Session expired. Please login again.");
     }
     
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
         const data = await response.json();
         if (!response.ok) {
-            throw new Error(data.message || 'Lỗi hệ thống không xác định.');
+            throw new Error(data.message || 'Unknown system error.');
         }
         return data;
     }
     
     if (!response.ok) {
-        throw new Error(`Lỗi Server (Status: ${response.status})`);
+        throw new Error(`Server Error (Status: ${response.status})`);
     }
     return {};
   }, []);
@@ -343,7 +343,7 @@ export default function DoctorDashboard() {
     try {
         const data = await fetchApi(API_PROFILE_URL, { method: 'GET' });
         if (data && data.data) {
-            let specName = "Đa khoa";
+            let specName = "General Practice";
             if (data.data.allSpecializations && data.data.selectedSpecializationIds) {
                  const specs = data.data.allSpecializations
                     .filter(s => data.data.selectedSpecializationIds.includes(s.id))
@@ -412,7 +412,7 @@ export default function DoctorDashboard() {
     setTodayStats({
       totalPatients: todayApps.length,
       completed: completedToday,
-      nextAppointment: nextApp ? nextApp.appointmentTime.substring(0, 5) : "Hết lịch",
+      nextAppointment: nextApp ? nextApp.appointmentTime.substring(0, 5) : "None",
       pendingRequests: bookedToday.length
     });
 
@@ -442,7 +442,8 @@ export default function DoctorDashboard() {
         const dateStr = d.toISOString().split('T')[0];
         
         const bookedCount = data.filter(app => app.appointmentDate === dateStr && (app.status === 'BOOKED' || app.status === 'COMPLETED')).length;
-        const dayName = new Intl.DateTimeFormat('vi-VN', { weekday: 'long' }).format(d);
+        // Chuyển đổi sang locale en-US để hiển thị thứ bằng tiếng Anh
+        const dayName = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(d);
         
         nextDays.push({
             day: dayName,
@@ -464,8 +465,10 @@ export default function DoctorDashboard() {
   }, [appointments, filterMode]);
 
   const handleUpdateStatus = async (id, actionType) => {
-    const actionLabel = actionType === 'CANCEL' ? 'hủy' : 'hoàn thành';
-    if (!window.confirm(`Bạn có chắc chắn muốn ${actionLabel} lịch hẹn này?`)) return;
+    const actionVerb = actionType === 'CANCEL' ? 'cancel' : 'complete';
+    const actionPastTense = actionType === 'CANCEL' ? 'Cancelled' : 'Completed';
+    
+    if (!window.confirm(`Are you sure you want to ${actionVerb} this appointment?`)) return;
 
     setLoading(true);
     setSuccessMessage(null);
@@ -479,7 +482,7 @@ export default function DoctorDashboard() {
         body: JSON.stringify({ id, actionType }),
       });
 
-      setSuccessMessage(`Đã ${actionLabel} thành công!`);
+      setSuccessMessage(`Appointment ${actionPastTense} successfully!`);
       
       // Refresh data without full page reload
       const data = await fetchApi(API_APPOINTMENTS_URL, { method: 'GET' });
@@ -552,15 +555,15 @@ export default function DoctorDashboard() {
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div>
               <h2 className="fw-bold text-dark mb-0">
-                {activeTab === 'profile' ? 'Thông Tin Cá Nhân' : 
-                 activeTab === 'patients' ? 'Danh sách Bệnh nhân' :
-                 activeTab === 'schedule' ? 'Quản lý Lịch làm việc' : 'Dashboard'}
+                {activeTab === 'profile' ? 'Personal Profile' : 
+                 activeTab === 'patients' ? 'Patient List' :
+                 activeTab === 'schedule' ? 'Schedule Management' : 'Dashboard'}
               </h2>
-              <p className="text-muted mb-0">Xin chào, {doctorProfile?.fullName || "Bác sĩ"}</p>
+              <p className="text-muted mb-0">Welcome, {doctorProfile?.fullName || "Doctor"}</p>
             </div>
             {activeTab === 'dashboard' && (
                 <button className="btn btn-primary bg-primary-custom border-0 shadow-sm" onClick={fetchAppointments} disabled={loading}>
-                <i className={`fas fa-sync-alt me-2 ${loading ? 'fa-spin' : ''}`}></i> Làm mới
+                <i className={`fas fa-sync-alt me-2 ${loading ? 'fa-spin' : ''}`}></i> Refresh
                 </button>
             )}
           </div>
@@ -581,36 +584,36 @@ export default function DoctorDashboard() {
                 <div className="row g-3 mb-4">
                     <div className="col-md-3">
                     <StatCard 
-                        title="Bệnh nhân hôm nay" 
+                        title="Patients Today" 
                         value={todayStats.totalPatients} 
-                        subtext={`${todayStats.completed} đã hoàn thành`}
+                        subtext={`${todayStats.completed} completed`}
                         icon="user-md" 
                         color="primary"
                     />
                     </div>
                     <div className="col-md-3">
                     <StatCard 
-                        title="Lịch hẹn kế tiếp" 
+                        title="Next Appointment" 
                         value={todayStats.nextAppointment} 
-                        subtext={todayStats.nextAppointment !== "Hết lịch" ? "Hôm nay" : ""}
+                        subtext={todayStats.nextAppointment !== "None" ? "Today" : ""}
                         icon="clock" 
                         color="warning"
                     />
                     </div>
                     <div className="col-md-3">
                     <StatCard 
-                        title="Chờ khám" 
+                        title="Pending" 
                         value={todayStats.pendingRequests} 
-                        subtext="Cần xử lý ngay"
+                        subtext="Needs attention"
                         icon="clipboard-list" 
                         color="danger"
                     />
                     </div>
                     <div className="col-md-3">
                     <StatCard 
-                        title="Đánh giá TB" 
+                        title="Avg Rating" 
                         value="4.8/5.0" 
-                        subtext="+12% so với tháng trước"
+                        subtext="+12% vs last month"
                         icon="star" 
                         color="success"
                     />
@@ -623,19 +626,19 @@ export default function DoctorDashboard() {
                     <div className="col-lg-8">
                     <div className="card border-0 shadow-sm mb-4">
                         <div className="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                        <h5 className="mb-0 fw-bold">Danh sách Lịch Khám</h5>
+                        <h5 className="mb-0 fw-bold">Appointment List</h5>
                         <div className="btn-group">
                             <button 
                                 className={`btn btn-sm btn-outline-primary ${filterMode === 'all' ? 'active' : ''}`}
                                 onClick={() => setFilterMode('all')}
                             >
-                                Tất cả
+                                All
                             </button>
                             <button 
                                 className={`btn btn-sm btn-outline-primary ${filterMode === 'today' ? 'active' : ''}`}
                                 onClick={() => setFilterMode('today')}
                             >
-                                Hôm nay
+                                Today
                             </button>
                         </div>
                         </div>
@@ -649,7 +652,7 @@ export default function DoctorDashboard() {
                         {filteredAppointments.length === 0 && !loading ? (
                             <div className="text-center p-5 text-muted">
                             <i className="fas fa-calendar-times fa-3x mb-3 opacity-50"></i>
-                            <p>{filterMode === 'today' ? "Hôm nay không có lịch hẹn nào." : "Chưa có lịch hẹn nào."}</p>
+                            <p>{filterMode === 'today' ? "No appointments today." : "No appointments yet."}</p>
                             </div>
                         ) : (
                             filteredAppointments.map((item) => (
@@ -668,16 +671,16 @@ export default function DoctorDashboard() {
 
                     <div className="card border-0 shadow-sm">
                         <div className="card-header bg-white py-3">
-                        <h5 className="mb-0 fw-bold">Lịch Trình (5 ngày tới)</h5>
+                        <h5 className="mb-0 fw-bold">Schedule (Next 5 Days)</h5>
                         </div>
                         <div className="card-body">
-                        <p className="small text-muted mb-3">Số lượng lịch đã đặt dự kiến.</p>
+                        <p className="small text-muted mb-3">Expected booked appointments.</p>
                         {weeklyStats.length > 0 ? (
                             weeklyStats.map((stat, idx) => (
                                 <AvailabilityBar key={idx} day={stat.day} booked={stat.booked} total={stat.total} />
                             ))
                         ) : (
-                            <div className="text-center text-muted py-3">Đang tải...</div>
+                            <div className="text-center text-muted py-3">Loading...</div>
                         )}
                         </div>
                     </div>
@@ -685,7 +688,7 @@ export default function DoctorDashboard() {
                 </div>
               </>
           ) : (
-              <div className="text-center p-5 text-muted">Chức năng đang phát triển</div>
+              <div className="text-center p-5 text-muted">Feature under development</div>
           )}
         </div>
       </div>

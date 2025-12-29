@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
-// URL API Backend
+// Backend API URL
 const API_PUBLIC_ARTICLES_URL = 'http://localhost:8888/api/v1/controllers/public_article_list.php'; 
 
-const ITEMS_PER_PAGE = 8; // Cấu hình phân trang
+const ITEMS_PER_PAGE = 8; // Pagination configuration
 
 // =======================================================
-// HÀM FETCH API CHUNG
+// SHARED FETCH API HOOK
 // =======================================================
 const useFetchApi = () => {
     return useCallback(async (url, options = {}) => {
@@ -17,23 +17,23 @@ const useFetchApi = () => {
         });
 
         if (response.status === 401) {
-            // Với trang tin tức công khai, có thể không cần bắt lỗi 401 chặt chẽ nếu cho phép khách xem
-            // Nhưng nếu yêu cầu đăng nhập thì giữ nguyên
-            throw new Error("Vui lòng đăng nhập để xem nội dung.");
+            // For public news pages, tight 401 handling might not be needed if guests are allowed
+            // But if login is required, keep it
+            throw new Error("Please log in to view content.");
         }
         
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = data.message || 'Lỗi hệ thống không xác định.';
+                const errorMessage = data.message || 'Unknown system error.';
                 throw new Error(errorMessage);
             }
             return data;
         }
         
         if (!response.ok) {
-            throw new Error('Tải dữ liệu thất bại (Lỗi Server).');
+            throw new Error('Data load failed (Server Error).');
         }
         return {};
     }, []);
@@ -41,18 +41,18 @@ const useFetchApi = () => {
 
 
 // =======================================================
-// COMPONENT PHỤ: MODAL XEM CHI TIẾT BÀI VIẾT
+// SUB-COMPONENT: ARTICLE DETAIL MODAL
 // =======================================================
 const ArticleDetailModal = ({ article, isModalOpen, closeModal }) => {
     if (!isModalOpen || !article) return null;
 
-    // Hàm tiện ích để hiển thị đúng nhãn Category
+    // Utility function to display correct Category label
     const getCategoryLabel = (value) => {
         const categories = [
-            { value: 'NEWS', label: 'Tin tức Y tế' },
-            { value: 'DISEASE', label: 'Bệnh lý' },
-            { value: 'PREVENTION', label: 'Phòng bệnh' },
-            { value: 'CURE', label: 'Cách chữa' },
+            { value: 'NEWS', label: 'Medical News' },
+            { value: 'DISEASE', label: 'Pathology/Disease' },
+            { value: 'PREVENTION', label: 'Prevention' },
+            { value: 'CURE', label: 'Treatment/Cure' },
         ];
         return categories.find(c => c.value === value)?.label || value;
     };
@@ -67,7 +67,7 @@ const ArticleDetailModal = ({ article, isModalOpen, closeModal }) => {
                     </div>
                     
                     <div className="modal-body px-4 px-md-5 pb-5">
-                        {/* Ảnh Thumbnail lớn */}
+                        {/* Large Thumbnail Image */}
                         {article.thumbnail && (
                             <div className="mb-4 text-center rounded overflow-hidden shadow-sm">
                                 <img 
@@ -85,10 +85,10 @@ const ArticleDetailModal = ({ article, isModalOpen, closeModal }) => {
                                 {getCategoryLabel(article.category)}
                             </span>
                             <span className="me-3"><i className="bi bi-person-fill me-1"></i>{article.author_name}</span>
-                            <span><i className="bi bi-calendar3 me-1"></i>{new Date(article.created_at).toLocaleDateString('vi-VN')}</span>
+                            <span><i className="bi bi-calendar3 me-1"></i>{new Date(article.created_at).toLocaleDateString('en-US')}</span>
                         </div>
 
-                        {/* Subtitle (Mô tả ngắn/Sapo) */}
+                        {/* Subtitle (Short description/Lead) */}
                         {article.subtitle && (
                             <div className="lead fst-italic text-secondary mb-4 border-start border-4 border-primary ps-3">
                                 {article.subtitle}
@@ -97,16 +97,16 @@ const ArticleDetailModal = ({ article, isModalOpen, closeModal }) => {
                         
                         <hr className="my-4 opacity-10" />
 
-                        {/* Nội dung chi tiết */}
-                        {/* Lưu ý: Nếu nội dung có HTML từ CKEditor thì dùng dangerouslySetInnerHTML,
-                            còn nếu là text thuần thì dùng style whiteSpace */}
+                        {/* Detailed Content */}
+                        {/* Note: If content has HTML from CKEditor, use dangerouslySetInnerHTML,
+                            otherwise use whiteSpace style for plain text */}
                         <div className="article-content" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem', color: '#333' }}>
                              {article.content}
                         </div>
                     </div>
 
                     <div className="modal-footer border-top-0">
-                        <button type="button" className="btn btn-secondary px-4" onClick={closeModal}>Đóng</button>
+                        <button type="button" className="btn btn-secondary px-4" onClick={closeModal}>Close</button>
                     </div>
                 </div>
             </div>
@@ -116,7 +116,7 @@ const ArticleDetailModal = ({ article, isModalOpen, closeModal }) => {
 
 
 // =======================================================
-// COMPONENT CHÍNH: DANH SÁCH BÀI VIẾT
+// MAIN COMPONENT: ARTICLE LIST
 // =======================================================
 const ArticleListViewer = () => {
     const [articles, setArticles] = useState([]);
@@ -128,18 +128,18 @@ const ArticleListViewer = () => {
     const [filterCategory, setFilterCategory] = useState('ALL'); 
     const [currentPage, setCurrentPage] = useState(1);
     
-    const [viewingArticle, setViewingArticle] = useState(null); // Bài viết đang được xem chi tiết
+    const [viewingArticle, setViewingArticle] = useState(null); // Article being viewed in detail
 
     const fetchApi = useFetchApi();
 
-    // ------------------- TẢI DỮ LIỆU BÀI VIẾT -------------------
+    // ------------------- FETCH ARTICLE DATA -------------------
     const fetchArticles = useCallback(async () => {
         setError(null);
         setIsLoading(true);
         try {
             const data = await fetchApi(API_PUBLIC_ARTICLES_URL, { method: 'GET' });
             
-            // Dữ liệu từ API đã bao gồm thumbnail, subtitle
+            // Data from API already includes thumbnail, subtitle
             setArticles(data.data.articles || []);
             setCategories(data.data.categories || []);
 
@@ -155,16 +155,16 @@ const ArticleListViewer = () => {
     }, [fetchArticles]);
 
 
-    // ------------------- LOGIC LỌC & PHÂN TRANG -------------------
+    // ------------------- FILTER & PAGINATION LOGIC -------------------
     const filteredArticles = useMemo(() => {
         let result = articles;
 
-        // Lọc theo Thể loại
+        // Filter by Category
         if (filterCategory !== 'ALL') {
             result = result.filter(a => a.category === filterCategory);
         }
 
-        // Tìm kiếm theo Tiêu đề
+        // Search by Title
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             result = result.filter(a => 
@@ -186,7 +186,7 @@ const ArticleListViewer = () => {
     const handlePageChange = (page) => {
         if (page > 0 && page <= totalPages) {
             setCurrentPage(page);
-            // Cuộn lên đầu trang (UX tốt hơn)
+            // Scroll to top (better UX)
             window.scrollTo({ top: 0, behavior: 'smooth' }); 
         }
     };
@@ -196,15 +196,15 @@ const ArticleListViewer = () => {
     return (
         <div className="container py-5">
             <div className="text-center mb-5">
-                <h2 className="display-6 fw-bold text-primary mb-3">📚 Thư Viện Y Tế & Sức Khỏe</h2>
-                <p className="text-muted lead">Cập nhật những kiến thức y khoa mới nhất và lời khuyên hữu ích.</p>
+                <h2 className="display-6 fw-bold text-primary mb-3">📚 Medical & Health Library</h2>
+                <p className="text-muted lead">Stay updated with the latest medical knowledge and useful advice.</p>
             </div>
 
             {error && <div className="alert alert-danger shadow-sm" role="alert"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>}
 
             <div className="card shadow-sm border-0 rounded-4 p-4 mb-5 bg-white">
                 
-                {/* THANH LỌC & TÌM KIẾM */}
+                {/* FILTER & SEARCH BAR */}
                 <div className="d-flex flex-wrap justify-content-between align-items-center">
                     <form onSubmit={handleSearch} className="d-flex flex-grow-1 flex-md-grow-0 w-md-50 w-100">
                         <div className="input-group">
@@ -214,7 +214,7 @@ const ArticleListViewer = () => {
                                 value={filterCategory}
                                 onChange={(e) => {setFilterCategory(e.target.value); setCurrentPage(1);}}
                             >
-                                <option value="ALL">Tất cả Chủ đề</option>
+                                <option value="ALL">All Topics</option>
                                 {categories.map(cat => (
                                     <option key={cat.value} value={cat.value}>{cat.label}</option>
                                 ))}
@@ -222,7 +222,7 @@ const ArticleListViewer = () => {
                             <input
                                 type="text"
                                 className="form-control border-start-0 bg-light border-0"
-                                placeholder="Tìm kiếm bài viết..."
+                                placeholder="Search articles..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
@@ -232,28 +232,28 @@ const ArticleListViewer = () => {
                         </div>
                     </form>
                     <div className="mt-3 mt-md-0 text-muted small">
-                        Hiển thị {currentArticles.length} / {filteredArticles.length} bài viết
+                        Showing {currentArticles.length} / {filteredArticles.length} articles
                     </div>
                 </div>
             </div>
 
-            {/* DANH SÁCH BÀI VIẾT (GRID CARD) */}
+            {/* ARTICLE LIST (GRID CARD) */}
             {isLoading ? (
                 <div className="text-center py-5 text-secondary">
                     <div className="spinner-border text-primary mb-3" style={{width: '3rem', height: '3rem'}} role="status"></div>
-                    <p>Đang tải thư viện...</p>
+                    <p>Loading library...</p>
                 </div>
             ) : filteredArticles.length === 0 ? (
                 <div className="alert alert-light text-center py-5 shadow-sm rounded-4">
                     <i className="bi bi-journal-x fs-1 text-muted mb-3 d-block"></i>
-                    Không tìm thấy bài viết nào khớp với tiêu chí tìm kiếm.
+                    No articles found matching your search criteria.
                 </div>
             ) : (
                 <div className="row g-4">
                     {currentArticles.map(article => (
                         <div key={article.id} className="col-md-6 col-lg-4 col-xl-3 d-flex">
                             <div className="card h-100 shadow-sm border-0 rounded-4 overflow-hidden w-100 card-hover-effect" style={{transition: 'transform 0.2s'}}>
-                                {/* Ảnh Thumbnail */}
+                                {/* Thumbnail Image */}
                                 <div className="position-relative" style={{ height: '200px', overflow: 'hidden' }}>
                                     <img 
                                         src={article.thumbnail || 'https://placehold.co/600x400/e9ecef/6c757d?text=Medicenter'} 
@@ -270,7 +270,7 @@ const ArticleListViewer = () => {
                                         {article.title}
                                     </h5>
                                     
-                                    {/* Subtitle / Mô tả ngắn */}
+                                    {/* Subtitle / Short Description */}
                                     <p className="card-text text-muted small flex-grow-1 mb-3 text-truncate-3-lines">
                                         {article.subtitle 
                                             ? article.subtitle 
@@ -281,13 +281,13 @@ const ArticleListViewer = () => {
                                     <div className="d-flex justify-content-between align-items-center mt-auto pt-3 border-top border-light">
                                         <small className="text-muted" style={{fontSize: '0.75rem'}}>
                                             <i className="bi bi-clock me-1"></i>
-                                            {new Date(article.created_at).toLocaleDateString('vi-VN')}
+                                            {new Date(article.created_at).toLocaleDateString('en-US')}
                                         </small>
                                         <button 
                                             className="btn btn-sm btn-outline-primary rounded-pill px-3"
                                             onClick={() => setViewingArticle(article)}
                                         >
-                                            Đọc tiếp
+                                            Read More
                                         </button>
                                     </div>
                                 </div>
@@ -297,7 +297,7 @@ const ArticleListViewer = () => {
                 </div>
             )}
             
-            {/* Phân trang */}
+            {/* Pagination */}
             {totalPages > 1 && (
                 <nav className="mt-5 d-flex justify-content-center">
                     <ul className="pagination shadow-sm rounded-pill overflow-hidden">
@@ -322,14 +322,14 @@ const ArticleListViewer = () => {
                 </nav>
             )}
 
-            {/* Modal Xem Chi tiết */}
+            {/* View Detail Modal */}
             <ArticleDetailModal 
                 article={viewingArticle}
                 isModalOpen={!!viewingArticle}
                 closeModal={() => setViewingArticle(null)}
             />
             
-            {/* CSS nội bộ để xử lý text truncate nhiều dòng (nếu Bootstrap class không đủ) */}
+            {/* Internal CSS to handle multi-line text truncation (if Bootstrap class is insufficient) */}
             <style>{`
                 .text-truncate-2-lines {
                     display: -webkit-box;

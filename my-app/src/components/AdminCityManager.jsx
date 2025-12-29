@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
-// URL API Backend (Sử dụng API chung cho CRUD)
+// Backend API URL (Shared CRUD API)
 const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
 const API_CITY_CRUD_URL = API_BASE_URL + 'admin_city_crud.php';
 
-// Cấu hình phân trang
+// Pagination Configuration
 const ITEMS_PER_PAGE = 10;
 
 // =======================================================
-// HÀM FETCH API CHUNG (Tái sử dụng)
+// SHARED FETCH API HOOK (Reusable)
 // =======================================================
 const useFetchApi = () => {
     return useCallback(async (url, options = {}) => {
@@ -22,21 +22,21 @@ const useFetchApi = () => {
         });
 
         if (response.status === 401) {
-            throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại với vai trò Admin.");
+            throw new Error("Session expired. Please login again as Admin.");
         }
         
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = data.message || 'Lỗi hệ thống không xác định.';
+                const errorMessage = data.message || 'Unknown system error.';
                 throw new Error(errorMessage);
             }
             return data;
         }
         
         if (!response.ok) {
-            throw new Error('Thao tác thất bại (Lỗi Server).');
+            throw new Error('Operation failed (Server Error).');
         }
         return {};
     }, []);
@@ -44,7 +44,7 @@ const useFetchApi = () => {
 
 
 // =======================================================
-// COMPONENT PHỤ: 1. MODAL THÊM/SỬA THÀNH PHỐ
+// SUB-COMPONENT: 1. ADD/EDIT CITY MODAL
 // =======================================================
 
 const CityFormModal = ({ city, mode, isModalOpen, closeModal, refreshList, fetchApi }) => {
@@ -53,7 +53,7 @@ const CityFormModal = ({ city, mode, isModalOpen, closeModal, refreshList, fetch
     const [localError, setLocalError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     
-    // Reset state khi mở/đóng modal
+    // Reset state on modal open/close
     useEffect(() => {
         if (isModalOpen) {
             setCityName(isEditing ? city?.name || '' : '');
@@ -67,7 +67,7 @@ const CityFormModal = ({ city, mode, isModalOpen, closeModal, refreshList, fetch
         setIsLoading(true);
 
         if (!cityName.trim()) {
-            setLocalError('Tên thành phố không được để trống.');
+            setLocalError('City name cannot be empty.');
             setIsLoading(false);
             return;
         }
@@ -86,7 +86,7 @@ const CityFormModal = ({ city, mode, isModalOpen, closeModal, refreshList, fetch
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            window.alert(data.message || `Đã ${isEditing ? 'cập nhật' : 'thêm'} thành phố thành công.`);
+            window.alert(data.message || `City ${isEditing ? 'updated' : 'added'} successfully.`);
             refreshList(); 
             closeModal();
 
@@ -104,7 +104,7 @@ const CityFormModal = ({ city, mode, isModalOpen, closeModal, refreshList, fetch
             <div className="modal-dialog">
                 <div className="modal-content">
                     <div className="modal-header bg-primary text-white">
-                        <h5 className="modal-title">{isEditing ? `Sửa Thành phố ID: ${city.id}` : 'Thêm Thành phố Mới'}</h5>
+                        <h5 className="modal-title">{isEditing ? `Edit City ID: ${city.id}` : 'Add New City'}</h5>
                         <button type="button" className="btn-close btn-close-white" onClick={closeModal} disabled={isLoading}></button>
                     </div>
                     <div className="modal-body">
@@ -112,7 +112,7 @@ const CityFormModal = ({ city, mode, isModalOpen, closeModal, refreshList, fetch
 
                         <form onSubmit={handleSubmit}>
                             <div className="mb-3">
-                                <label className="form-label">Tên Thành phố (*)</label>
+                                <label className="form-label">City Name (*)</label>
                                 <input 
                                     type="text" 
                                     className="form-control" 
@@ -124,7 +124,7 @@ const CityFormModal = ({ city, mode, isModalOpen, closeModal, refreshList, fetch
                             </div>
 
                             <button type="submit" className="btn btn-primary w-100 mt-4" disabled={isLoading}>
-                                {isLoading ? 'Đang xử lý...' : isEditing ? 'Lưu Thay Đổi' : 'Thêm Thành phố'}
+                                {isLoading ? 'Processing...' : isEditing ? 'Save Changes' : 'Add City'}
                             </button>
                         </form>
                     </div>
@@ -136,7 +136,7 @@ const CityFormModal = ({ city, mode, isModalOpen, closeModal, refreshList, fetch
 
 
 // =======================================================
-// COMPONENT 2: QUẢN LÝ CHÍNH (ADMINCITYMANAGER)
+// COMPONENT 2: MAIN MANAGER (ADMINCITYMANAGER)
 // =======================================================
 
 const AdminCityManager = () => {
@@ -147,19 +147,19 @@ const AdminCityManager = () => {
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingCity, setEditingCity] = useState(null); 
-    const [deletingCityId, setDeletingCityId] = useState(null); // ID thành phố đang xóa
+    const [deletingCityId, setDeletingCityId] = useState(null); // ID of the city being deleted
 
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
 
     const fetchApi = useFetchApi();
 
-    // ------------------- TẢI DỮ LIỆU CHÍNH -------------------
+    // ------------------- FETCH MAIN DATA -------------------
     const fetchCities = useCallback(async () => {
         setError(null);
         setIsLoading(true);
         try {
-            // API GET trả về: { data: { cities: [...] } }
+            // API GET returns: { data: { cities: [...] } }
             const data = await fetchApi(API_CITY_CRUD_URL, { method: 'GET' });
             
             setCities(data.data.cities || []);
@@ -175,7 +175,7 @@ const AdminCityManager = () => {
         fetchCities();
     }, [fetchCities]);
 
-    // ------------------- LOGIC TÌM KIẾM & PHÂN TRANG -------------------
+    // ------------------- SEARCH & PAGINATION LOGIC -------------------
     const filteredCities = useMemo(() => {
         if (!searchTerm) return cities;
         const term = searchTerm.toLowerCase();
@@ -201,16 +201,16 @@ const AdminCityManager = () => {
     };
 
 
-    // ------------------- LOGIC HÀNH ĐỘNG -------------------
+    // ------------------- ACTION LOGIC -------------------
     
-    // 1. Mở modal Sửa
+    // 1. Open Edit Modal
     const handleEditCity = (city) => {
         setEditingCity(city);
     };
 
-    // 2. Xóa Thành phố
+    // 2. Delete City
     const handleDeleteCity = useCallback(async (cityId, cityName) => {
-        if (!window.confirm(`Bạn có chắc chắn muốn XÓA thành phố "${cityName}" (ID: ${cityId}) không? Thao tác này KHÔNG THỂ hoàn tác.`)) {
+        if (!window.confirm(`Are you sure you want to DELETE city "${cityName}" (ID: ${cityId})? This action CANNOT be undone.`)) {
             return;
         }
 
@@ -219,14 +219,14 @@ const AdminCityManager = () => {
         setSuccessMessage(null);
 
         try {
-            // API DELETE: Gửi ID qua body hoặc query param
+            // API DELETE: Send ID via body or query param
             await fetchApi(API_CITY_CRUD_URL, {
                 method: 'DELETE',
                 body: JSON.stringify({ id: cityId }),
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            setSuccessMessage(`Đã xóa thành phố "${cityName}" thành công.`);
+            setSuccessMessage(`City "${cityName}" deleted successfully.`);
             fetchCities(); 
 
         } catch (err) {
@@ -247,19 +247,19 @@ const AdminCityManager = () => {
 
             <div className="card shadow-sm p-4">
                 
-                {/* THANH TÌM KIẾM & THÊM MỚI */}
+                {/* SEARCH BAR & ADD NEW */}
                 <div className="d-flex justify-content-between align-items-center mb-4">
                     <form onSubmit={handleSearch} className="d-flex">
                         <input
                             type="text"
                             className="form-control me-2"
-                            placeholder="Tìm kiếm theo Tên hoặc ID Thành phố"
+                            placeholder="Search by Name or City ID"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             style={{ width: '300px' }}
                         />
                         <button type="submit" className="btn btn-outline-primary">
-                            <i className="bi bi-search">Tìm kiếm thành phố</i>
+                            <i className="bi bi-search">Search City</i>
                         </button>
                     </form>
                     
@@ -268,28 +268,28 @@ const AdminCityManager = () => {
                         onClick={() => setIsAddModalOpen(true)}
                         disabled={isLoading}
                     >
-                        <i className="bi bi-plus-lg"></i> Thêm Thành phố
+                        <i className="bi bi-plus-lg"></i> Add New City
                     </button>
                 </div>
 
-                {/* Bảng Danh sách Thành phố */}
+                {/* City List Table */}
                 <div className="table-responsive">
                     <table className="table table-striped align-middle">
                         <thead className="table-light">
                             <tr>
                                 <th>ID</th>
-                                <th>Tên Thành phố</th>
-                                <th>Hành động</th>
+                                <th>City Name</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan="3" className="text-center py-4 text-muted">Đang tải dữ liệu...</td>
+                                    <td colSpan="3" className="text-center py-4 text-muted">Loading data...</td>
                                 </tr>
                             ) : filteredCities.length === 0 ? (
                                 <tr>
-                                    <td colSpan="3" className="text-center py-4 text-muted">Không tìm thấy thành phố nào.</td>
+                                    <td colSpan="3" className="text-center py-4 text-muted">No cities found.</td>
                                 </tr>
                             ) : (
                                 currentCities.map(city => (
@@ -301,13 +301,13 @@ const AdminCityManager = () => {
                                                 className="btn btn-sm btn-outline-primary me-2"
                                                 onClick={() => handleEditCity(city)}
                                             >
-                                                Sửa
+                                                Edit
                                             </button>
                                             <button 
                                                 className={`btn btn-sm btn-danger`}
                                                 onClick={() => handleDeleteCity(city.id, city.name)}
                                             >
-                                                Xóa
+                                                Delete
                                             </button>
                                         </td>
                                     </tr>
@@ -317,12 +317,12 @@ const AdminCityManager = () => {
                     </table>
                 </div>
 
-                {/* Phân trang */}
+                {/* Pagination */}
                 {totalPages > 1 && (
                     <nav className="mt-4 d-flex justify-content-center">
                         <ul className="pagination">
                             <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                                <button className="page-link" onClick={() => handlePageChange(currentPage - 1)}>Trước</button>
+                                <button className="page-link" onClick={() => handlePageChange(currentPage - 1)}>Previous</button>
                             </li>
                             {[...Array(totalPages)].map((_, index) => (
                                 <li key={index} className={`page-item ${currentPage === index + 1 ? 'active' : ''}`}>
@@ -332,14 +332,14 @@ const AdminCityManager = () => {
                                 </li>
                             ))}
                             <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                                <button className="page-link" onClick={() => handlePageChange(currentPage + 1)}>Sau</button>
+                                <button className="page-link" onClick={() => handlePageChange(currentPage + 1)}>Next</button>
                             </li>
                         </ul>
                     </nav>
                 )}
             </div>
             
-            {/* Modal Thêm */}
+            {/* Add Modal */}
             <CityFormModal 
                 city={null}
                 mode={'add'}
@@ -349,7 +349,7 @@ const AdminCityManager = () => {
                 fetchApi={fetchApi}
             />
             
-            {/* Modal Sửa */}
+            {/* Edit Modal */}
             <CityFormModal 
                 city={editingCity}
                 mode={'edit'}

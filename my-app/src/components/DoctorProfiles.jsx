@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-// URL API Backend (Sử dụng cổng 5173 cho Frontend và 8888 cho Backend)
+// Backend API URL (Using port 5173 for Frontend and 8888 for Backend)
 const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
 const API_PROFILE_URL = API_BASE_URL + 'doctor_profile.php';
 const API_AVATAR_UPLOAD_URL = 'http://localhost:8888/api/v1/upload/doctor_avatar.php';
 const API_QUALIFICATION_UPLOAD_URL = 'http://localhost:8888/api/v1/upload/doctor_qualification_upload.php';
 
-// Các giá trị mặc định cho form
+// Default form values
 const initialDoctorData = {
     doctorId: null,
     fullName: '',
@@ -15,7 +15,7 @@ const initialDoctorData = {
     cityId: '',
     qualification: '',
     bio: '',
-    profilePicture: 'https://placehold.co/120x120/AFD1E4/FFFFFF/png?text=Bác+Sĩ',
+    profilePicture: 'https://placehold.co/120x120/AFD1E4/FFFFFF/png?text=Doctor',
 };
 
 const initialNewQualification = { 
@@ -29,13 +29,13 @@ const DoctorProfiles = () => {
     const [activeTab, setActiveTab] = useState('personal');
     const [formData, setFormData] = useState(initialDoctorData);
     const [avatarFile, setAvatarFile] = useState(null);
-    const [allCities, setAllCities] = useState([]); // Cities từ DB
+    const [allCities, setAllCities] = useState([]); // Cities from DB
     
-    // State cho chuyên khoa
+    // Specialization State
     const [allSpecializations, setAllSpecializations] = useState([]);
     const [selectedSpecializationIds, setSelectedSpecializationIds] = useState([]);
 
-    // State cho bằng cấp
+    // Qualification State
     const [qualifications, setQualifications] = useState([]);
     const [newQualification, setNewQualification] = useState(initialNewQualification);
 
@@ -44,15 +44,15 @@ const DoctorProfiles = () => {
     const [successMessage, setSuccessMessage] = useState(null);
 
 
-    // Hàm gọi API FETCH chung (ĐÃ SỬA)
+    // Shared Fetch API Function
     const fetchApi = useCallback(async (url, options) => {
         
-        // Cấu hình headers cho JSON hoặc bỏ qua cho FormData
+        // Configure headers for JSON or skip for FormData
         let headers = { ...(options.headers || {}) };
         if (!(options.body instanceof FormData)) {
              headers['Content-Type'] = 'application/json';
         } else {
-             // Với FormData, trình duyệt tự đặt Content-Type: multipart/form-data
+             // For FormData, let the browser set Content-Type: multipart/form-data
              delete headers['Content-Type']; 
         }
 
@@ -62,54 +62,53 @@ const DoctorProfiles = () => {
             headers: headers,
         });
 
-        // 1. Kiểm tra trạng thái HTTP (Lỗi Session, Lỗi Server chung)
+        // 1. Check HTTP Status (Session Error, General Server Error)
         if (response.status === 401) {
-            throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.");
+            throw new Error("Session expired. Please login again.");
         }
         
-        // 2. Kiểm tra Content-Type trước khi gọi .json()
+        // 2. Check Content-Type before calling .json()
         const contentType = response.headers.get('content-type');
         const isJson = contentType && contentType.includes('application/json');
 
         if (isJson) {
             const data = await response.json();
             if (!response.ok) {
-                // Lỗi từ Server có body JSON (ví dụ: 400 Bad Request, 500 Internal Server Error)
-                throw new Error(data.message || 'Lỗi hệ thống không xác định.');
+                // JSON body error from Server (e.g., 400 Bad Request, 500 Internal Server Error)
+                throw new Error(data.message || 'Unknown system error.');
             }
             return data;
         }
 
-        // 3. Nếu không phải JSON (File upload thành công nhưng không trả về JSON, hoặc lỗi Server không cấu trúc)
+        // 3. If not JSON (Upload successful but no JSON return, or unstructured Server error)
         if (!response.ok) {
-             // Đọc response text để kiểm tra lỗi PHP
+             // Read response text to check for PHP errors
              const rawText = await response.text();
              if (rawText.length > 0) {
-                 // Đây là nơi lỗi JSON thường xảy ra (PHP Warning/Notice)
-                 throw new Error(`Cập nhật thất bại (Lỗi Server: ${rawText.substring(0, 100)}...)`);
+                 // This is where JSON errors often occur (PHP Warning/Notice)
+                 throw new Error(`Update failed (Server Error: ${rawText.substring(0, 100)}...)`);
              }
-             throw new Error('Cập nhật thất bại (Lỗi Server).');
+             throw new Error('Update failed (Server Error).');
         }
 
-        return {}; // Trả về object rỗng nếu response.ok và không có JSON body (ví dụ: HTTP 204 No Content)
+        return {}; // Return empty object if response.ok and no JSON body (e.g., HTTP 204 No Content)
     }, []);
 
     // ============================================
-    // 1. TẢI DỮ LIỆU BAN ĐẦU (useEffect)
+    // 1. INITIAL DATA LOADING (useEffect)
     // ============================================
     useEffect(() => {
         const fetchProfileData = async () => {
             setError(null);
             try {
-                // Tải dữ liệu chính (Profile, Chuyên khoa, Bằng cấp)
+                // Load main data (Profile, Specializations, Qualifications)
                 const data = await fetchApi(API_PROFILE_URL, { method: 'GET' });
                 const profile = data.data;
 
-                // Cập nhật State Cities (Giả định tải cities từ một API riêng, nhưng hiện tại dùng dummy)
-                // THỰC TẾ: Cần fetch cities từ DB
-                setAllCities(profile.allCities || [{ id: 1, name: 'Hồ Chí Minh' }, { id: 2, name: 'Hà Nội' }]);
+                // Update Cities State (Mock data if API not fully ready, but logic assumes DB fetch)
+                setAllCities(profile.allCities || [{ id: 1, name: 'Ho Chi Minh' }, { id: 2, name: 'Ha Noi' }]);
 
-                // Cập nhật Form Data
+                // Update Form Data
                 setFormData({
                     doctorId: profile.doctorId,
                     fullName: profile.fullName || '',
@@ -121,16 +120,16 @@ const DoctorProfiles = () => {
                     profilePicture: profile.profilePicture || initialDoctorData.profilePicture,
                 });
 
-                // Cập nhật Chuyên khoa
+                // Update Specializations
                 setSelectedSpecializationIds(profile.selectedSpecializationIds || []);
                 
-                // Chuẩn hóa danh sách chuyên khoa có sẵn
+                // Normalize available specialization list
                 setAllSpecializations(profile.allSpecializations.map(spec => ({
                     ...spec,
                     checked: profile.selectedSpecializationIds.includes(spec.id)
                 })));
 
-                // Cập nhật Bằng cấp
+                // Update Qualifications
                 setQualifications(profile.qualifications || []);
 
             } catch (err) {
@@ -146,7 +145,7 @@ const DoctorProfiles = () => {
 
 
     // ============================================
-    // 2. XỬ LÝ FORM CHUNG & AVATAR
+    // 2. GENERAL FORM & AVATAR HANDLING
     // ============================================
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -156,14 +155,14 @@ const DoctorProfiles = () => {
         const file = e.target.files[0];
         if (file) {
             setAvatarFile(file);
-            setFormData({ ...formData, profilePicture: URL.createObjectURL(file) }); // Preview ảnh
+            setFormData({ ...formData, profilePicture: URL.createObjectURL(file) }); // Preview image
         }
     };
     
     const uploadAvatar = useCallback(async () => {
         setError(null);
         setSuccessMessage(null);
-        if (!avatarFile) return true; // Không có file để tải
+        if (!avatarFile) return true; // No file to upload
 
         const uploadFormData = new FormData();
         uploadFormData.append('avatar', avatarFile);
@@ -174,7 +173,7 @@ const DoctorProfiles = () => {
                 body: uploadFormData,
             });
             
-            // Cập nhật URL ảnh mới từ server
+            // Update new avatar URL from server
             setFormData(prev => ({...prev, profilePicture: data.newAvatarUrl})); 
             setAvatarFile(null); 
             return true;
@@ -187,17 +186,17 @@ const DoctorProfiles = () => {
 
 
     // ============================================
-    // 3. HANDLER SUBMIT TABS
+    // 3. TAB SUBMIT HANDLERS
     // ============================================
 
-    // Tab 1: Cập nhật Thông tin cá nhân
+    // Tab 1: Update Personal Information
     const handleSubmitPersonal = useCallback(async (e) => {
         e.preventDefault();
         setError(null);
         setSuccessMessage(null);
         setIsLoading(true);
 
-        // 1. Tải Avatar trước (nếu có file mới)
+        // 1. Upload Avatar first (if new file exists)
         let uploadSuccess = true;
         if (avatarFile) {
             uploadSuccess = await uploadAvatar();
@@ -207,9 +206,9 @@ const DoctorProfiles = () => {
             return;
         }
         
-        // 2. Cập nhật thông tin text profile
+        // 2. Update text profile info
         const payload = {
-            updateType: 'personal', // Dùng cho Backend Router
+            updateType: 'personal', // Used for Backend Router
             fullName: formData.fullName,
             phone: formData.phone,
             cityId: parseInt(formData.cityId),
@@ -224,7 +223,7 @@ const DoctorProfiles = () => {
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            setSuccessMessage(data.message || "Thông tin cá nhân đã được cập nhật thành công!");
+            setSuccessMessage(data.message || "Personal information updated successfully!");
         } catch (err) {
             setError(err.message);
         } finally {
@@ -233,7 +232,7 @@ const DoctorProfiles = () => {
     }, [formData, avatarFile, uploadAvatar, fetchApi]);
 
 
-    // Tab 2: Cập nhật Chuyên khoa
+    // Tab 2: Update Specializations
     const handleSubmitSpecializations = useCallback(async (e) => {
         e.preventDefault();
         setError(null);
@@ -241,13 +240,13 @@ const DoctorProfiles = () => {
         setIsLoading(true);
 
         if (selectedSpecializationIds.length === 0) {
-             setError("Vui lòng chọn ít nhất một chuyên khoa.");
+             setError("Please select at least one specialization.");
              setIsLoading(false);
              return;
         }
 
         const payload = {
-            updateType: 'specializations', // Dùng cho Backend Router
+            updateType: 'specializations', // Used for Backend Router
             specializationIds: selectedSpecializationIds,
         };
 
@@ -258,7 +257,7 @@ const DoctorProfiles = () => {
                 headers: { 'Content-Type': 'application/json' },
             });
             
-            setSuccessMessage(data.message || "Chuyên khoa đã được đồng bộ hóa thành công!");
+            setSuccessMessage(data.message || "Specializations synchronized successfully!");
         } catch (err) {
             setError(err.message);
         } finally {
@@ -266,9 +265,9 @@ const DoctorProfiles = () => {
         }
     }, [selectedSpecializationIds, fetchApi]);
 
-    // === HÀM MỚI: XỬ LÝ XÓA BẰNG CẤP ===
+    // === NEW FUNCTION: HANDLE QUALIFICATION DELETION ===
     const handleDeleteQualification = useCallback(async (qualificationId) => {
-        if (!window.confirm("Bạn có chắc chắn muốn xóa bằng cấp này không? Hành động này không thể hoàn tác.")) {
+        if (!window.confirm("Are you sure you want to delete this qualification? This action cannot be undone.")) {
             return;
         }
 
@@ -277,21 +276,21 @@ const DoctorProfiles = () => {
         setSuccessMessage(null);
 
         try {
-            // Sử dụng updateType 'delete_qualification' mà chúng ta đã định nghĩa ở PHP
+            // Using updateType 'delete_qualification' defined in PHP
             const payload = {
                 updateType: 'delete_qualification',
                 qualificationId: qualificationId
             };
 
             const data = await fetchApi(API_PROFILE_URL, {
-                method: 'PUT', // Dùng method PUT hoặc POST để gửi JSON body
+                method: 'PUT', // Using PUT or POST to send JSON body
                 body: JSON.stringify(payload),
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            // Xóa thành công, cập nhật UI bằng cách lọc bỏ item đó ra khỏi state
+            // Delete successful, update UI by filtering out the item
             setQualifications(prev => prev.filter(q => q.id !== qualificationId));
-            setSuccessMessage(data.message || "Đã xóa bằng cấp thành công!");
+            setSuccessMessage(data.message || "Qualification deleted successfully!");
 
         } catch (err) {
             setError(err.message);
@@ -301,20 +300,20 @@ const DoctorProfiles = () => {
     }, [fetchApi]);
 
 
-    // Tab 3: Thêm bằng cấp
+    // Tab 3: Add Qualification
     const handleAddQualification = useCallback(async (e) => {
         e.preventDefault();
         setError(null);
         setSuccessMessage(null);
 
         if (!newQualification.title || !newQualification.institution || !newQualification.year || !newQualification.documentFile) {
-             setError('Vui lòng điền đủ thông tin bằng cấp và tải lên file.');
+             setError('Please fill in all qualification details and upload the file.');
              return;
         }
         
         setIsLoading(true);
 
-        // 1. Tải file bằng cấp lên server (FormData)
+        // 1. Upload qualification file to server (FormData)
         const uploadFormData = new FormData();
         uploadFormData.append('qualification_document', newQualification.documentFile);
         uploadFormData.append('title', newQualification.title);
@@ -327,15 +326,15 @@ const DoctorProfiles = () => {
                 body: uploadFormData,
             });
 
-            // 2. Cập nhật state với bản ghi mới từ server
+            // 2. Update state with new record from server
             const newRecord = {
-                ...data.data, // Nhận ID, URL, is_verified=0 từ Server
+                ...data.data, // Receive ID, URL, is_verified=0 from Server
                 document_url: data.data.document_url,
                 is_verified: 0,
             };
             setQualifications(prev => [...prev, newRecord]);
             setNewQualification(initialNewQualification); // Reset form
-            setSuccessMessage(data.message || 'Bằng cấp đã được thêm và đang chờ xác minh!');
+            setSuccessMessage(data.message || 'Qualification added and pending verification!');
 
         } catch (err) {
             setError(err.message);
@@ -344,7 +343,7 @@ const DoctorProfiles = () => {
         }
     }, [newQualification, fetchApi]);
 
-    // Xử lý Checkbox Chuyên khoa
+    // Handle Specialization Checkbox
     const handleSpecializationToggle = (id) => {
         setAllSpecializations(prevSpecs => prevSpecs.map(spec => 
             spec.id === id ? { ...spec, checked: !spec.checked } : spec
@@ -355,24 +354,24 @@ const DoctorProfiles = () => {
         );
     };
 
-    // Thêm vào DoctorProfiles component
-const handleNewQualificationChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === 'documentFile') {
-        setNewQualification(prev => ({ ...prev, documentFile: files[0] }));
-    } else {
-        setNewQualification(prev => ({ ...prev, [name]: value }));
-    }
-};
+    // Add to DoctorProfiles component
+    const handleNewQualificationChange = (e) => {
+        const { name, value, files } = e.target;
+        if (name === 'documentFile') {
+            setNewQualification(prev => ({ ...prev, documentFile: files[0] }));
+        } else {
+            setNewQualification(prev => ({ ...prev, [name]: value }));
+        }
+    };
 
 
 
     if (isLoading) {
-        return <div className="text-center py-5 text-primary"><i className="bi bi-arrow-clockwise fs-3 animate-spin me-2"></i>Đang tải dữ liệu hồ sơ bác sĩ...</div>;
+        return <div className="text-center py-5 text-primary"><i className="bi bi-arrow-clockwise fs-3 animate-spin me-2"></i>Loading doctor profile data...</div>;
     }
     
-    // Nếu có lỗi nghiêm trọng (ví dụ: 401 Unauthorized), hiển thị lỗi
-    if (error && error.includes('đăng nhập lại')) {
+    // If critical error (e.g., 401 Unauthorized), show error
+    if (error && error.includes('login again')) {
         return <div className="alert alert-danger text-center py-5">{error}</div>;
     }
 
@@ -380,11 +379,11 @@ const handleNewQualificationChange = (e) => {
     return (
         <div className="container py-5">
             {/* <h2 className="mb-4 text-success d-flex align-items-center">
-                <i className="bi bi-person-badge-fill me-3"></i> Quản lý Profile Bác Sĩ
+                <i className="bi bi-person-badge-fill me-3"></i> Doctor Profile Management
                 {formData.doctorId && <span className="badge bg-secondary ms-3">ID Doctor: {formData.doctorId}</span>}
             </h2> */}
             
-            {/* Hiển thị thông báo lỗi/thành công */}
+            {/* Display Error/Success Messages */}
             {error && <div className="alert alert-danger" role="alert">{error}</div>}
             {successMessage && <div className="alert alert-success" role="alert">{successMessage}</div>}
 
@@ -398,7 +397,7 @@ const handleNewQualificationChange = (e) => {
                                 className={`nav-link ${activeTab === 'personal' ? 'active text-primary fw-bold' : 'text-muted'}`} 
                                 onClick={() => setActiveTab('personal')}
                             >
-                                <i className="bi bi-person-fill me-2"></i> Thông tin cá nhân
+                                <i className="bi bi-person-fill me-2"></i> Personal Information
                             </button>
                         </li>
                         <li className="nav-item">
@@ -406,7 +405,7 @@ const handleNewQualificationChange = (e) => {
                                 className={`nav-link ${activeTab === 'specializations' ? 'active text-primary fw-bold' : 'text-muted'}`} 
                                 onClick={() => setActiveTab('specializations')}
                             >
-                                <i className="bi bi-hospital-fill me-2"></i> Chuyên khoa ({selectedSpecializationIds.length})
+                                <i className="bi bi-hospital-fill me-2"></i> Specializations ({selectedSpecializationIds.length})
                             </button>
                         </li>
                         <li className="nav-item">
@@ -414,12 +413,12 @@ const handleNewQualificationChange = (e) => {
                                 className={`nav-link ${activeTab === 'qualifications' ? 'active text-primary fw-bold' : 'text-muted'}`} 
                                 onClick={() => setActiveTab('qualifications')}
                             >
-                                <i className="bi bi-award-fill me-2"></i> Bằng cấp & Xác minh ({qualifications.length})
+                                <i className="bi bi-award-fill me-2"></i> Qualifications & Verification ({qualifications.length})
                             </button>
                         </li>
                         <li className="nav-item ms-auto">
                             <button className="btn btn-sm btn-outline-warning d-flex align-items-center" style={{marginTop: '4px'}}>
-                                <i className="bi bi-key-fill me-2"></i> Đổi mật khẩu
+                                <i className="bi bi-key-fill me-2"></i> Change Password
                             </button>
                         </li>
                     </ul>
@@ -429,7 +428,7 @@ const handleNewQualificationChange = (e) => {
                     {/* TAB CONTENT 1: PERSONAL INFORMATION */}
                     {activeTab === 'personal' && (
                         <form onSubmit={handleSubmitPersonal}>
-                            <h4 className="mb-4 text-primary">Cập nhật Thông tin cá nhân & Liên hệ</h4>
+                            <h4 className="mb-4 text-primary">Update Personal & Contact Information</h4>
                             
                             <div className="row mb-4 align-items-center">
                                 {/* Avatar Section */}
@@ -441,7 +440,7 @@ const handleNewQualificationChange = (e) => {
                                         style={{ width: '120px', height: '120px', objectFit: 'cover' }}
                                     />
                                     <label htmlFor="avatarUpload" className="btn btn-outline-primary btn-sm d-block mx-auto" style={{maxWidth: '120px'}}>
-                                        <i className="bi bi-camera-fill me-2"></i> Đổi Avatar
+                                        <i className="bi bi-camera-fill me-2"></i> Change Avatar
                                     </label>
                                     <input 
                                         type="file" 
@@ -457,22 +456,22 @@ const handleNewQualificationChange = (e) => {
                                 <div className="col-md-9">
                                     <div className="row mb-3">
                                         <div className="col-md-6">
-                                            <label htmlFor="fullName" className="form-label fw-bold">Họ tên đầy đủ</label>
+                                            <label htmlFor="fullName" className="form-label fw-bold">Full Name</label>
                                             <input type="text" className="form-control" id="fullName" name="fullName" value={formData.fullName} onChange={handleChange} required />
                                         </div>
                                         <div className="col-md-6">
                                             <label htmlFor="email" className="form-label fw-bold">Email</label>
                                             <input type="email" className="form-control" id="email" name="email" value={formData.email} onChange={handleChange} disabled />
-                                            <div className="form-text">Email không thể thay đổi.</div>
+                                            <div className="form-text">Email cannot be changed.</div>
                                         </div>
                                     </div>
                                     <div className="row mb-3">
                                         <div className="col-md-6">
-                                            <label htmlFor="phone" className="form-label fw-bold">Số điện thoại</label>
+                                            <label htmlFor="phone" className="form-label fw-bold">Phone Number</label>
                                             <input type="tel" className="form-control" id="phone" name="phone" value={formData.phone} onChange={handleChange} required />
                                         </div>
                                         <div className="col-md-6">
-                                            <label htmlFor="cityId" className="form-label fw-bold">Thành phố làm việc</label>
+                                            <label htmlFor="cityId" className="form-label fw-bold">Working City</label>
                                             <select className="form-select" id="cityId" name="cityId" value={formData.cityId} onChange={handleChange} required>
                                                 {allCities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                             </select>
@@ -482,19 +481,19 @@ const handleNewQualificationChange = (e) => {
                             </div>
 
                             <div className="mb-3">
-                                <label htmlFor="qualification" className="form-label fw-bold">Bằng cấp/Trình độ (Ngắn gọn)</label>
+                                <label htmlFor="qualification" className="form-label fw-bold">Qualification/Degree (Short)</label>
                                 <input type="text" className="form-control" id="qualification" name="qualification" value={formData.qualification} onChange={handleChange} required />
-                                <div className="form-text">Ví dụ: Tiến sĩ Y học, Chuyên khoa II Da Liễu.</div>
+                                <div className="form-text">e.g., MD, PhD, Dermatology Specialist.</div>
                             </div>
                             
                             <div className="mb-4">
-                                <label htmlFor="bio" className="form-label fw-bold">Tiểu sử ngắn (Bio)</label>
-                                <textarea className="form-control" id="bio" name="bio" value={formData.bio} onChange={handleChange} rows="4" placeholder="Giới thiệu về bản thân, kinh nghiệm, chuyên môn..."></textarea>
-                                <div className="form-text">Mô tả ngắn gọn, hiển thị công khai.</div>
+                                <label htmlFor="bio" className="form-label fw-bold">Short Bio</label>
+                                <textarea className="form-control" id="bio" name="bio" value={formData.bio} onChange={handleChange} rows="4" placeholder="Introduction about yourself, experience, expertise..."></textarea>
+                                <div className="form-text">Short description, publicly visible.</div>
                             </div>
 
                             <button type="submit" className="btn btn-success btn-lg px-5" disabled={isLoading}>
-                                <i className="bi bi-save-fill me-2"></i> {isLoading ? 'Đang lưu...' : 'Lưu Thông tin cá nhân'}
+                                <i className="bi bi-save-fill me-2"></i> {isLoading ? 'Saving...' : 'Save Personal Info'}
                             </button>
                         </form>
                     )}
@@ -502,9 +501,9 @@ const handleNewQualificationChange = (e) => {
                     {/* TAB CONTENT 2: SPECIALIZATIONS */}
                     {activeTab === 'specializations' && (
                         <form onSubmit={handleSubmitSpecializations}>
-                            <h4 className="mb-4 text-primary">Chọn các Chuyên khoa bạn tham gia</h4>
+                            <h4 className="mb-4 text-primary">Select your Specializations</h4>
                             <p className="text-muted mb-4">
-                                <i className="bi bi-info-circle-fill me-2"></i> Thông tin này sẽ được đồng bộ ngay lập tức và dùng để lọc tìm kiếm.
+                                <i className="bi bi-info-circle-fill me-2"></i> This information is synced immediately and used for search filtering.
                             </p>
                             <div className="row row-cols-1 row-cols-md-3 g-3">
                                 {allSpecializations.map(spec => (
@@ -526,7 +525,7 @@ const handleNewQualificationChange = (e) => {
                                 ))}
                             </div>
                             <button type="submit" className="btn btn-primary btn-lg mt-4 px-5" disabled={isLoading}>
-                                <i className="bi bi-save-fill me-2"></i> {isLoading ? 'Đang đồng bộ...' : 'Lưu Chuyên khoa'}
+                                <i className="bi bi-save-fill me-2"></i> {isLoading ? 'Syncing...' : 'Save Specializations'}
                             </button>
                         </form>
                     )}
@@ -534,22 +533,22 @@ const handleNewQualificationChange = (e) => {
                     {/* TAB CONTENT 3: QUALIFICATIONS & VERIFICATION */}
                     {activeTab === 'qualifications' && (
                         <div>
-                            <h4 className="mb-4 text-primary">Bằng cấp & Tình trạng Xác minh</h4>
+                            <h4 className="mb-4 text-primary">Qualifications & Verification Status</h4>
                             <p className="text-muted mb-4">
-                                <i className="bi bi-exclamation-triangle-fill me-2"></i> Tải lên bản scan bằng cấp. Các bằng cấp CHƯA XÁC MINH sẽ không hiển thị huy hiệu xác thực.
+                                <i className="bi bi-exclamation-triangle-fill me-2"></i> Upload scanned qualifications. UNVERIFIED qualifications will not show the verification badge.
                             </p>
                             
-                            <h5 className="mb-3 text-dark">Các bằng cấp hiện có ({qualifications.length})</h5>
+                            <h5 className="mb-3 text-dark">Existing Qualifications ({qualifications.length})</h5>
                             {qualifications.length > 0 ? (
                                 <div className="table-responsive">
                                     <table className="table table-hover table-bordered align-middle">
                                         <thead className="table-light">
                                             <tr>
-                                                <th>Bằng cấp</th>
-                                                <th>Tổ chức</th>
-                                                <th>Năm</th>
-                                                <th>Trạng thái</th>
-                                                <th>Hành động</th>
+                                                <th>Title</th>
+                                                <th>Institution</th>
+                                                <th>Year</th>
+                                                <th>Status</th>
+                                                <th>Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -560,20 +559,20 @@ const handleNewQualificationChange = (e) => {
                                                     <td>{q.year}</td>
                                                     <td>
                                                         {q.is_verified 
-                                                            ? <span className="badge bg-success-subtle text-success border border-success-subtle"><i className="bi bi-check-circle-fill me-1"></i> Đã xác minh</span> 
-                                                            : <span className="badge bg-warning-subtle text-warning border border-warning-subtle"><i className="bi bi-hourglass-split me-1"></i> Chờ duyệt</span>
+                                                            ? <span className="badge bg-success-subtle text-success border border-success-subtle"><i className="bi bi-check-circle-fill me-1"></i> Verified</span> 
+                                                            : <span className="badge bg-warning-subtle text-warning border border-warning-subtle"><i className="bi bi-hourglass-split me-1"></i> Pending</span>
                                                         }
                                                     </td>
                                                     <td>
                                                         <a href={q.document_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-info me-2">
-                                                            <i className="bi bi-file-earmark-text-fill me-1"></i> Xem File
+                                                            <i className="bi bi-file-earmark-text-fill me-1"></i> View File
                                                         </a>
                                                         <button 
                                                             className="btn btn-sm btn-outline-danger"
                                                             onClick={() => handleDeleteQualification(q.id)}
                                                             disabled={isLoading}
                                                         >
-                                                            <i className="bi bi-trash-fill"> Xóa</i>
+                                                            <i className="bi bi-trash-fill"> Delete</i>
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -583,33 +582,33 @@ const handleNewQualificationChange = (e) => {
                                 </div>
                             ) : (
                                 <div className="alert alert-info" role="alert">
-                                    Bạn chưa có bằng cấp nào được thêm.
+                                    No qualifications added yet.
                                 </div>
                             )}
 
-                            <h5 className="mt-5 mb-3 text-dark">Thêm Bằng cấp mới</h5>
+                            <h5 className="mt-5 mb-3 text-dark">Add New Qualification</h5>
                             <form onSubmit={handleAddQualification} className="p-4 border rounded bg-light">
                                 <div className="row g-3 mb-3">
                                     <div className="col-md-6">
-                                        <label htmlFor="newQualTitle" className="form-label">Tên bằng cấp (*)</label>
+                                        <label htmlFor="newQualTitle" className="form-label">Degree Title (*)</label>
                                         <input type="text" className="form-control" id="newQualTitle" name="title" value={newQualification.title} onChange={handleNewQualificationChange} required />
                                     </div>
                                     <div className="col-md-4">
-                                        <label htmlFor="newQualInstitution" className="form-label">Tổ chức cấp (*)</label>
+                                        <label htmlFor="newQualInstitution" className="form-label">Issuing Institution (*)</label>
                                         <input type="text" className="form-control" id="newQualInstitution" name="institution" value={newQualification.institution} onChange={handleNewQualificationChange} required />
                                     </div>
                                     <div className="col-md-2">
-                                        <label htmlFor="newQualYear" className="form-label">Năm hoàn thành (*)</label>
+                                        <label htmlFor="newQualYear" className="form-label">Year Completed (*)</label>
                                         <input type="number" className="form-control" id="newQualYear" name="year" value={newQualification.year} onChange={handleNewQualificationChange} min="1900" max={new Date().getFullYear()} required />
                                     </div>
                                 </div>
                                 <div className="mb-4">
-                                    <label htmlFor="newQualDocument" className="form-label">Tải lên bản scan bằng cấp (PDF/Image) (*)</label>
+                                    <label htmlFor="newQualDocument" className="form-label">Upload Qualification Scan (PDF/Image) (*)</label>
                                     <input type="file" className="form-control" id="newQualDocument" name="documentFile" accept=".pdf,.jpg,.jpeg,.png" onChange={handleNewQualificationChange} required />
-                                    <div className="form-text">Chỉ chấp nhận file PDF hoặc hình ảnh (JPG, PNG).</div>
+                                    <div className="form-text">Only PDF or image files (JPG, PNG) are accepted.</div>
                                 </div>
                                 <button type="submit" className="btn btn-primary px-5" disabled={isLoading}>
-                                    <i className="bi bi-plus-circle-fill me-2"></i> Thêm Bằng cấp
+                                    <i className="bi bi-plus-circle-fill me-2"></i> Add Qualification
                                 </button>
                             </form>
                         </div>

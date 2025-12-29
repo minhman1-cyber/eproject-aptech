@@ -18,7 +18,7 @@ const LoginForm = () => {
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
-        // CỰC KỲ QUAN TRỌNG: Cho phép trình duyệt gửi và nhận Cookie Session
+        // CRITICAL: Allow browser to send and receive Session Cookies
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -29,22 +29,22 @@ const LoginForm = () => {
         }),
       });
 
-      // 1. Kiểm tra trạng thái HTTP
+      // 1. Check HTTP status
       if (!response.ok) {
         const errorData = await response.json();
-        const errorMessage = errorData.message || 'Đăng nhập thất bại. Vui lòng kiểm tra thông tin.';
+        const errorMessage = errorData.message || 'Login failed. Please check your credentials.';
         throw new Error(errorMessage);
       }
 
-      // 2. Xử lý thành công
+      // 2. Handle success
       const data = await response.json();
       const userData = data.data;
       const role = userData.role;
 
-      // Session Cookie đã được thiết lập tự động trong trình duyệt
-      // alert(`Đăng nhập thành công! Vai trò: ${role}`); // Có thể bỏ alert để trải nghiệm mượt hơn
+      // Session Cookie automatically set in browser
+      // alert(`Login successful! Role: ${role}`); // Can remove alert for smoother experience
 
-      // 3. Chuyển hướng dựa trên vai trò
+      // 3. Redirect based on role
       if (role === 'PATIENT') {
         navigate('/patient/dashboard');
       } else if (role === 'DOCTOR') {

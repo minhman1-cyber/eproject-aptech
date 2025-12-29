@@ -1,35 +1,35 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-// URL API Backend (Sử dụng cổng 5173 cho Frontend và 8888 cho Backend)
+// Backend API URL (Using port 5173 for Frontend and 8888 for Backend)
 const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
 const API_LIST_URL = API_BASE_URL + 'admin_doctor_manager.php';
 const API_REGISTER_URL = API_BASE_URL + 'register.php';
-const API_UPDATE_URL = API_BASE_URL + 'admin_update_doctor.php'; // API mới cho việc sửa
+const API_UPDATE_URL = API_BASE_URL + 'admin_update_doctor.php'; // New API for updating
 
-// Cấu hình phân trang
+// Pagination Configuration
 const ITEMS_PER_PAGE = 10;
 
 // =======================================================
-// HÀM CHUYỂN ĐỔI DATA (Doctor object -> Form data)
+// DATA CONVERSION FUNCTION (Doctor object -> Form data)
 // =======================================================
 
-// Hàm ánh xạ dữ liệu doctor từ API sang cấu trúc form
+// Function to map doctor data from API to form structure
 const mapDoctorToForm = (doctor) => ({
-    userId: doctor.user_id, // Giữ lại ID để update
+    userId: doctor.user_id, // Keep ID for update
     fullName: doctor.full_name || '',
     email: doctor.email || '',
     phone: doctor.phone || '',
     cityId: doctor.city_id || '',
     qualification: doctor.qualification || '',
     bio: doctor.bio || '',
-    is_active: doctor.user_is_active, // Trạng thái kích hoạt (1/0)
-    is_approved: doctor.is_active, // Trạng thái duyệt (APPROVED/PENDING/REJECTED)
-    specializationIds: doctor.specializationIds ? doctor.specializationIds.map(id => String(id)) : [], // Phải là string array cho Checkbox
+    is_active: doctor.user_is_active, // Activation status (1/0)
+    is_approved: doctor.is_active, // Approval status (APPROVED/PENDING/REJECTED)
+    specializationIds: doctor.specializationIds ? doctor.specializationIds.map(id => String(id)) : [], // Must be string array for Checkbox
 });
 
 
 // =======================================================
-// COMPONENT 1: FORM THÊM BÁC SĨ MỚI (MODAL CONTENT)
+// COMPONENT 1: ADD NEW DOCTOR FORM (MODAL CONTENT)
 // =======================================================
 
 const initialDoctorForm = {
@@ -45,13 +45,13 @@ const initialDoctorForm = {
 };
 
 const AddDoctorForm = ({ isModalOpen, closeModal, cities, specializations, refreshList }) => {
-    // Bước 1: Cơ bản, Bước 2: Chi tiết
+    // Step 1: Basic, Step 2: Details
     const [step, setStep] = useState(1); 
     const [formData, setFormData] = useState(initialDoctorForm);
     const [localError, setLocalError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    // Reset form khi modal đóng/mở
+    // Reset form when modal opens/closes
     useEffect(() => {
         if (isModalOpen) {
             setFormData(initialDoctorForm);
@@ -69,20 +69,20 @@ const AddDoctorForm = ({ isModalOpen, closeModal, cities, specializations, refre
         setLocalError('');
 
         if (step === 1) {
-            // Kiểm tra các trường bắt buộc ở bước 1
+            // Validate required fields in step 1
             if (!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword) {
-                setLocalError('Vui lòng điền đầy đủ Họ tên, Email và Mật khẩu.');
+                setLocalError('Please fill in Full Name, Email, and Password.');
                 return;
             }
             if (formData.password !== formData.confirmPassword) {
-                setLocalError('Mật khẩu xác nhận không khớp.');
+                setLocalError('Confirm password does not match.');
                 return;
             }
             setStep(2);
         }
     };
     
-    // Xử lý Checkbox Chuyên khoa
+    // Handle Specialization Checkbox
     const handleSpecializationToggle = (id) => {
         setFormData(prevData => {
             const currentSpecs = prevData.specializationIds;
@@ -105,24 +105,24 @@ const AddDoctorForm = ({ isModalOpen, closeModal, cities, specializations, refre
         setLocalError('');
         setIsLoading(true);
 
-        // Kiểm tra các trường bắt buộc ở bước 2
+        // Validate required fields in step 2
         if (!formData.phone || !formData.cityId || formData.specializationIds.length === 0 || !formData.qualification) {
-            setLocalError('Vui lòng điền đầy đủ SĐT, Thành phố, Chuyên khoa và Bằng cấp.');
+            setLocalError('Please fill in Phone, City, Specialization, and Qualification.');
             setIsLoading(false);
             return;
         }
 
-        // Chuẩn bị Payload cho API register.php
+        // Prepare Payload for register.php API
         const payload = {
             full_name: formData.fullName,
             email: formData.email,
             password: formData.password,
-            role: 'DOCTOR', // Cố định vai trò
+            role: 'DOCTOR', // Fixed role
             city_id: parseInt(formData.cityId),
             doctor_phone: formData.phone,
             doctor_qualification: formData.qualification,
             doctor_bio: formData.bio,
-            specialization_ids: formData.specializationIds.map(Number), // Chuyển về mảng số nguyên
+            specialization_ids: formData.specializationIds.map(Number), // Convert to integer array
         };
 
         try {
@@ -136,11 +136,11 @@ const AddDoctorForm = ({ isModalOpen, closeModal, cities, specializations, refre
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || 'Đăng ký thất bại. Lỗi hệ thống.');
+                throw new Error(data.message || 'Registration failed. System error.');
             }
 
-            // Dùng window.alert thay vì alert để dễ nhận biết trong React
-            window.alert(`Đăng ký Bác sĩ ${formData.fullName} thành công! Tài khoản đang chờ duyệt.`);
+            // Use window.alert for visibility
+            window.alert(`Doctor ${formData.fullName} registered successfully! Account is pending approval.`);
             refreshList(); 
             closeModal();
 
@@ -158,14 +158,14 @@ const AddDoctorForm = ({ isModalOpen, closeModal, cities, specializations, refre
             <div className="modal-dialog modal-lg">
                 <div className="modal-content">
                     <div className="modal-header bg-success text-white">
-                        <h5 className="modal-title">Thêm Bác sĩ Mới</h5>
+                        <h5 className="modal-title">Add New Doctor</h5>
                         <button type="button" className="btn-close btn-close-white" onClick={closeModal} disabled={isLoading}></button>
                     </div>
                     <div className="modal-body">
                         {/* Stepper */}
                         <div className="d-flex justify-content-between mb-4">
-                            <span className={`badge p-2 ${step === 1 ? 'bg-primary' : 'bg-secondary'}`}>1. Tài khoản cơ bản</span>
-                            <span className={`badge p-2 ${step === 2 ? 'bg-primary' : 'bg-secondary'}`}>2. Chi tiết chuyên môn</span>
+                            <span className={`badge p-2 ${step === 1 ? 'bg-primary' : 'bg-secondary'}`}>1. Basic Account</span>
+                            <span className={`badge p-2 ${step === 2 ? 'bg-primary' : 'bg-secondary'}`}>2. Professional Details</span>
                         </div>
                         
                         {localError && (
@@ -174,12 +174,12 @@ const AddDoctorForm = ({ isModalOpen, closeModal, cities, specializations, refre
 
                         <form onSubmit={step === 2 ? handleSubmit : handleNextStep}>
                             
-                            {/* STEP 1: Tài khoản cơ bản */}
+                            {/* STEP 1: Basic Account */}
                             {step === 1 && (
                                 <>
                                     <div className="row">
                                         <div className="col-md-6 mb-3">
-                                            <label className="form-label">Họ tên đầy đủ (*)</label>
+                                            <label className="form-label">Full Name (*)</label>
                                             <input type="text" className="form-control" name="fullName" value={formData.fullName} onChange={handleChange} required />
                                         </div>
                                         <div className="col-md-6 mb-3">
@@ -189,38 +189,38 @@ const AddDoctorForm = ({ isModalOpen, closeModal, cities, specializations, refre
                                     </div>
                                     <div className="row">
                                         <div className="col-md-6 mb-3">
-                                            <label className="form-label">Mật khẩu (*)</label>
+                                            <label className="form-label">Password (*)</label>
                                             <input type="password" className="form-control" name="password" value={formData.password} onChange={handleChange} required minLength="8" />
                                         </div>
                                         <div className="col-md-6 mb-3">
-                                            <label className="form-label">Xác nhận Mật khẩu (*)</label>
+                                            <label className="form-label">Confirm Password (*)</label>
                                             <input type="password" className="form-control" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required />
                                         </div>
                                     </div>
                                     <button type="submit" className="btn btn-primary w-100 mt-3" disabled={isLoading}>
-                                        Tiếp tục
+                                        Next
                                     </button>
                                 </>
                             )}
 
-                            {/* STEP 2: Chi tiết chuyên môn */}
+                            {/* STEP 2: Professional Details */}
                             {step === 2 && (
                                 <>
                                     <div className="row">
                                         <div className="col-md-6 mb-3">
-                                            <label className="form-label">Số điện thoại (*)</label>
+                                            <label className="form-label">Phone Number (*)</label>
                                             <input type="tel" className="form-control" name="phone" value={formData.phone} onChange={handleChange} required />
                                         </div>
                                         <div className="col-md-6 mb-3">
-                                            <label className="form-label">Thành phố làm việc (*)</label>
+                                            <label className="form-label">Working City (*)</label>
                                             <select className="form-select" name="cityId" value={formData.cityId} onChange={handleChange} required>
-                                                <option value="">Chọn Thành phố...</option>
+                                                <option value="">Select City...</option>
                                                 {cities.map(city => (<option key={city.id} value={city.id}>{city.name}</option>))}
                                             </select>
                                         </div>
                                     </div>
                                     <div className="mb-3">
-                                        <label className="form-label d-block">Chuyên khoa đăng ký (*)</label>
+                                        <label className="form-label d-block">Registered Specializations (*)</label>
                                         <div className="border p-3 rounded bg-light overflow-auto" style={{ maxHeight: '150px' }}>
                                             {specializations.map(spec => (
                                                 <div className="form-check form-check-inline" key={spec.id}>
@@ -235,23 +235,23 @@ const AddDoctorForm = ({ isModalOpen, closeModal, cities, specializations, refre
                                                 </div>
                                             ))}
                                         </div>
-                                        {formData.specializationIds.length === 0 && <small className="text-danger">Vui lòng chọn ít nhất một chuyên khoa.</small>}
+                                        {formData.specializationIds.length === 0 && <small className="text-danger">Please select at least one specialization.</small>}
                                     </div>
                                     <div className="mb-3">
-                                        <label className="form-label">Bằng cấp/Trình độ (*)</label>
+                                        <label className="form-label">Qualification/Degree (*)</label>
                                         <input type="text" className="form-control" name="qualification" value={formData.qualification} onChange={handleChange} required />
                                     </div>
                                     <div className="mb-3">
-                                        <label className="form-label">Tiểu sử ngắn (Bio)</label>
+                                        <label className="form-label">Short Bio</label>
                                         <textarea className="form-control" name="bio" value={formData.bio} onChange={handleChange} rows="2"></textarea>
                                     </div>
 
                                     <div className="d-flex justify-content-between mt-4">
                                         <button type="button" className="btn btn-secondary" onClick={() => setStep(1)} disabled={isLoading}>
-                                            Quay lại
+                                            Back
                                         </button>
                                         <button type="submit" className="btn btn-success" disabled={isLoading}>
-                                            {isLoading ? 'Đang thêm...' : 'Hoàn tất Thêm Bác sĩ'}
+                                            {isLoading ? 'Adding...' : 'Finish Adding Doctor'}
                                         </button>
                                     </div>
                                 </>
@@ -266,7 +266,7 @@ const AddDoctorForm = ({ isModalOpen, closeModal, cities, specializations, refre
 
 
 // =======================================================
-// COMPONENT 2: FORM SỬA BÁC SĨ (MODAL CONTENT)
+// COMPONENT 2: EDIT DOCTOR FORM (MODAL CONTENT)
 // =======================================================
 
 const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshList, updateDoctorApi }) => {
@@ -274,7 +274,7 @@ const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshL
     const [localError, setLocalError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     
-    // Khởi tạo form data từ doctor prop khi modal mở
+    // Initialize form data from doctor prop when modal opens
     useEffect(() => {
         if (doctor) {
             console.log(doctor);
@@ -284,14 +284,14 @@ const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshL
         }
     }, [doctor]);
 
-    // Không render nếu không có doctor nào đang được chỉnh sửa
+    // Do not render if no doctor is being edited
     if (!doctor) return null;
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    // Xử lý Checkbox Chuyên khoa
+    // Handle Specialization Checkbox
     const handleSpecializationToggle = (id) => {
         const specIdStr = String(id);
         setFormData(prevData => {
@@ -309,14 +309,14 @@ const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshL
         });
     };
 
-    // Xử lý thay đổi trạng thái Duyệt
+    // Handle Approval Status Change
     const handleApprovalChange = (e) => {
         setFormData({ ...formData, is_approved: e.target.value });
     };
     
-    // Xử lý thay đổi trạng thái Kích hoạt
+    // Handle Activation Status Change
     const handleActiveChange = (e) => {
-        // Phải đảm bảo giá trị là số (1 hoặc 0)
+        // Ensure value is a number (1 or 0)
         setFormData({ ...formData, is_active: parseInt(e.target.value, 10) });
     };
 
@@ -325,14 +325,14 @@ const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshL
         setLocalError('');
         setIsLoading(true);
 
-        // Kiểm tra validation
+        // Validation check
         if (!formData.fullName || !formData.email || !formData.phone || !formData.cityId || formData.specializationIds.length === 0 || !formData.qualification) {
-            setLocalError('Vui lòng điền đầy đủ các trường thông tin bắt buộc.');
+            setLocalError('Please fill in all required fields.');
             setIsLoading(false);
             return;
         }
 
-        // Chuẩn bị Payload cho API update
+        // Prepare Payload for update API
         const payload = {
             updateType: 'update_doctor_details',
             userId: formData.userId,
@@ -354,8 +354,8 @@ const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshL
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            window.alert(data.message || `Cập nhật Bác sĩ ${formData.fullName} (ID: ${formData.userId}) thành công!`);
-            refreshList(); // Tải lại danh sách
+            window.alert(data.message || `Updated Doctor ${formData.fullName} (ID: ${formData.userId}) successfully!`);
+            refreshList(); // Reload list
             closeModal();
 
         } catch (err) {
@@ -370,7 +370,7 @@ const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshL
             <div className="modal-dialog modal-lg">
                 <div className="modal-content">
                     <div className="modal-header bg-info text-white">
-                        <h5 className="modal-title">Sửa thông tin Bác sĩ (ID: {formData.userId})</h5>
+                        <h5 className="modal-title">Edit Doctor Info (ID: {formData.userId})</h5>
                         <button type="button" className="btn-close btn-close-white" onClick={closeModal} disabled={isLoading}></button>
                     </div>
                     <div className="modal-body">
@@ -379,11 +379,11 @@ const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshL
                         )}
                         
                         <form onSubmit={handleSubmit}>
-                            {/* Thông tin Cơ bản */}
-                            <h6 className="text-primary mb-3">1. Thông tin Cá nhân & Liên hệ</h6>
+                            {/* Basic Info */}
+                            <h6 className="text-primary mb-3">1. Personal & Contact Info</h6>
                             <div className="row">
                                 <div className="col-md-6 mb-3">
-                                    <label className="form-label">Họ tên đầy đủ (*)</label>
+                                    <label className="form-label">Full Name (*)</label>
                                     <input type="text" className="form-control" name="fullName" value={formData.fullName || ''} onChange={handleChange} required />
                                 </div>
                                 <div className="col-md-6 mb-3">
@@ -393,30 +393,30 @@ const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshL
                             </div>
                             <div className="row">
                                 <div className="col-md-6 mb-3">
-                                    <label className="form-label">Số điện thoại (*)</label>
+                                    <label className="form-label">Phone Number (*)</label>
                                     <input type="tel" className="form-control" name="phone" value={formData.phone || ''} onChange={handleChange} required />
                                 </div>
                                 <div className="col-md-6 mb-3">
-                                    <label className="form-label">Thành phố làm việc (*)</label>
+                                    <label className="form-label">Working City (*)</label>
                                     <select className="form-select" name="cityId" value={formData.cityId || ''} onChange={handleChange} required>
-                                        <option value="">Chọn Thành phố...</option>
-                                        {cities.map(city => (<option key={city.id} value={city.id}>{city.name}</option>))}
+                                            <option value="">Select City...</option>
+                                            {cities.map(city => (<option key={city.id} value={city.id}>{city.name}</option>))}
                                     </select>
                                 </div>
                             </div>
                             
-                            {/* Thông tin Chuyên môn */}
-                            <h6 className="text-primary my-3">2. Chuyên môn</h6>
+                            {/* Professional Info */}
+                            <h6 className="text-primary my-3">2. Professional Info</h6>
                             <div className="mb-3">
-                                <label className="form-label">Bằng cấp/Trình độ (*)</label>
+                                <label className="form-label">Qualification/Degree (*)</label>
                                 <input type="text" className="form-control" name="qualification" value={formData.qualification || ''} onChange={handleChange} required />
                             </div>
                             <div className="mb-3">
-                                <label className="form-label">Tiểu sử ngắn (Bio)</label>
+                                <label className="form-label">Short Bio</label>
                                 <textarea className="form-control" name="bio" value={formData.bio || ''} onChange={handleChange} rows="2"></textarea>
                             </div>
                             <div className="mb-3">
-                                <label className="form-label d-block">Chuyên khoa đăng ký (*)</label>
+                                <label className="form-label d-block">Registered Specializations (*)</label>
                                 <div className="border p-3 rounded bg-light overflow-auto" style={{ maxHeight: '150px' }}>
                                     {specializations.map(spec => (
                                         <div className="form-check form-check-inline" key={spec.id}>
@@ -431,31 +431,31 @@ const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshL
                                         </div>
                                     ))}
                                 </div>
-                                {formData.specializationIds?.length === 0 && <small className="text-danger">Vui lòng chọn ít nhất một chuyên khoa.</small>}
+                                {formData.specializationIds?.length === 0 && <small className="text-danger">Please select at least one specialization.</small>}
                             </div>
 
-                            {/* Trạng thái Admin */}
-                            <h6 className="text-primary my-3">3. Cài đặt Admin</h6>
+                            {/* Admin Status */}
+                            <h6 className="text-primary my-3">3. Admin Settings</h6>
                             <div className="row">
                                 <div className="col-md-6 mb-3">
-                                    <label className="form-label">Trạng thái Duyệt hồ sơ (*)</label>
+                                    <label className="form-label">Profile Approval Status (*)</label>
                                     <select className="form-select" name="is_approved" value={formData.is_approved || 'PENDING'} onChange={handleApprovalChange} required>
-                                        <option value="PENDING">PENDING (Chờ duyệt)</option>
-                                        <option value="APPROVED">APPROVED (Đã duyệt)</option>
-                                        <option value="REJECTED">REJECTED (Từ chối)</option>
+                                        <option value="PENDING">PENDING</option>
+                                        <option value="APPROVED">APPROVED</option>
+                                        <option value="REJECTED">REJECTED</option>
                                     </select>
                                 </div>
                                 <div className="col-md-6 mb-3">
-                                    <label className="form-label">Trạng thái Tài khoản (*)</label>
+                                    <label className="form-label">Account Status (*)</label>
                                     <select className="form-select" name="is_active" value={formData.is_active !== undefined ? formData.is_active : 1} onChange={handleActiveChange} required>
-                                        <option value={1}>1 - Đã Kích hoạt</option>
-                                        <option value={0}>0 - Đã Ngừng</option>
+                                        <option value={1}>1 - Active</option>
+                                        <option value={0}>0 - Inactive</option>
                                     </select>
                                 </div>
                             </div>
 
                             <button type="submit" className="btn btn-info text-white w-100 mt-4" disabled={isLoading}>
-                                {isLoading ? 'Đang cập nhật...' : 'Cập nhật Thông tin Bác sĩ'}
+                                {isLoading ? 'Updating...' : 'Update Doctor Info'}
                             </button>
                         </form>
                     </div>
@@ -467,7 +467,7 @@ const EditDoctorModal = ({ doctor, closeModal, cities, specializations, refreshL
 
 
 // =======================================================
-// COMPONENT 3: QUẢN LÝ CHÍNH (ADMINDOCTORMANAGER)
+// COMPONENT 3: MAIN MANAGER (ADMINDOCTORMANAGER)
 // =======================================================
 
 const AdminDoctorManager = () => {
@@ -475,11 +475,11 @@ const AdminDoctorManager = () => {
     const [cities, setCities] = useState([]);
     const [specializations, setSpecializations] = useState([]);
     
-    // State cho Modal Thêm mới
+    // Add New Modal State
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     
-    // State cho Modal Sửa
-    const [editingDoctor, setEditingDoctor] = useState(null); // Lưu trữ Doctor object đang được sửa
+    // Edit Modal State
+    const [editingDoctor, setEditingDoctor] = useState(null); // Stores Doctor object being edited
     
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -487,9 +487,9 @@ const AdminDoctorManager = () => {
 
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
-    const [searchType, setSearchType] = useState('name'); // 'name' hoặc 'id'
+    const [searchType, setSearchType] = useState('name'); // 'name' or 'id'
 
-    // Hàm gọi API FETCH chung (Giữ nguyên logic fetch API an toàn)
+    // Shared FETCH API Function (Keep safe fetch logic)
     const fetchApi = useCallback(async (url, options) => {
         let headers = { ...(options.headers || {}) };
         if (!(options.body instanceof FormData)) {
@@ -503,36 +503,36 @@ const AdminDoctorManager = () => {
         });
 
         if (response.status === 401) {
-            throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại với vai trò Admin.");
+            throw new Error("Session expired. Please login again as Admin.");
         }
         
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Lỗi hệ thống không xác định.');
+                throw new Error(data.message || 'Unknown system error.');
             }
             return data;
         }
         
         if (!response.ok) {
-            throw new Error('Cập nhật thất bại (Lỗi Server).');
+            throw new Error('Update failed (Server Error).');
         }
         return {};
     }, []);
 
-    // ------------------- TẢI DỮ LIỆU CHÍNH -------------------
+    // ------------------- FETCH MAIN DATA -------------------
     const fetchDoctors = useCallback(async () => {
         setError(null);
         setIsLoading(true);
         try {
             const data = await fetchApi(API_LIST_URL, { method: 'GET' });
             
-            // Chuyển specializationIds từ chuỗi/null/number[] sang mảng string (cho Checkbox)
+            // Convert specializationIds from string/null/number[] to string array (for Checkbox)
             const mappedDoctors = (data.data.doctors || []).map(doctor => ({
                 ...doctor,
                 specializationIds: (doctor.specializationIds || []).map(String),
-                city_id: String(doctor.city_id) // Đảm bảo city_id là string
+                city_id: String(doctor.city_id) // Ensure city_id is string
             }));
 
             setDoctors(mappedDoctors);
@@ -551,7 +551,7 @@ const AdminDoctorManager = () => {
     }, [fetchDoctors]);
 
 
-    // ------------------- LOGIC TÌM KIẾM & PHÂN TRANG -------------------
+    // ------------------- SEARCH & PAGINATION LOGIC -------------------
     const filteredDoctors = doctors.filter(doctor => {
         if (!searchTerm) return true;
 
@@ -560,7 +560,7 @@ const AdminDoctorManager = () => {
         if (searchType === 'name') {
             return doctor.full_name.toLowerCase().includes(term);
         } else if (searchType === 'id') {
-            // Tìm theo user_id (số nguyên)
+            // Search by user_id (integer)
             return String(doctor.user_id) === term; 
         }
         return true;
@@ -571,30 +571,29 @@ const AdminDoctorManager = () => {
     const currentDoctors = filteredDoctors.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
     const handleSearch = () => {
-        setCurrentPage(1); // Reset về trang 1 khi tìm kiếm
-        // Việc lọc đã xảy ra ở biến filteredDoctors
+        setCurrentPage(1); // Reset to page 1 when searching
     };
 
-    // ------------------- LOGIC HÀNH ĐỘNG -------------------
+    // ------------------- ACTION LOGIC -------------------
 
-    // Mở modal Sửa
+    // Open Edit Modal
     const handleEditDoctor = (doctor) => {
         setEditingDoctor(doctor);
     };
 
-    // Đóng modal Sửa
+    // Close Edit Modal
     const closeEditModal = () => {
         setEditingDoctor(null);
     };
 
-    // Kích hoạt/Ngừng kích hoạt tài khoản
+    // Activate/Deactivate Account
     const handleToggleActivation = useCallback(async (userId, currentStatus) => {
         const newStatus = currentStatus === 1 ? 0 : 1;
         const confirmMessage = newStatus === 0 
-            ? 'Bạn có chắc chắn muốn NGỪNG kích hoạt tài khoản này không?' 
-            : 'Bạn có chắc chắn muốn KÍCH HOẠT lại tài khoản này không?';
+            ? 'Are you sure you want to DEACTIVATE this account?' 
+            : 'Are you sure you want to REACTIVATE this account?';
 
-        // NOTE: Sử dụng window.confirm() cho các tác vụ Admin vì nó nằm ngoài luồng UX chính
+        // NOTE: Using window.confirm() for Admin tasks
         if (!window.confirm(confirmMessage)) return; 
 
         try {
@@ -610,8 +609,8 @@ const AdminDoctorManager = () => {
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            setSuccessMessage(data.message || 'Cập nhật trạng thái thành công.');
-            fetchDoctors(); // Tải lại danh sách sau khi cập nhật
+            setSuccessMessage(data.message || 'Status updated successfully.');
+            fetchDoctors(); // Reload list after update
 
         } catch (err) {
             setError(err.message);
@@ -623,69 +622,69 @@ const AdminDoctorManager = () => {
     return (
         <div className="container py-5">
 
-            {/* Thông báo lỗi/thành công */}
+            {/* Error/Success Messages */}
             {error && <div className="alert alert-danger" role="alert">{error}</div>}
             {successMessage && <div className="alert alert-success" role="alert">{successMessage}</div>}
 
             <div className="card shadow-sm p-4">
-                {/* Thanh Tìm kiếm và Thêm mới */}
+                {/* Search and Add New */}
                 <div className="d-flex justify-content-between align-items-center mb-4">
                     <div className="d-flex">
-                        {/* Combobox Tìm kiếm */}
+                        {/* Search Combobox */}
                         <select 
                             className="form-select me-2" 
-                            style={{ width: '150px' }}
+                            style={{ width: '160px' }}
                             value={searchType}
                             onChange={(e) => setSearchType(e.target.value)}
                         >
-                            <option value="name">Tìm theo Tên</option>
-                            <option value="id">Tìm theo User ID</option>
+                            <option value="name">Search by Name</option>
+                            <option value="id">Search by ID</option>
                         </select>
-                        {/* Input Tìm kiếm */}
+                        {/* Search Input */}
                         <input 
                             type="text" 
                             className="form-control me-2" 
-                            placeholder={`Nhập ${searchType === 'name' ? 'tên' : 'ID'}...`}
+                            placeholder={`Enter ${searchType === 'name' ? 'name' : 'ID'}...`}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                         <button className="btn btn-outline-primary" onClick={handleSearch}>
-                            <i className="bi bi-search"></i> Tìm
+                            <i className="bi bi-search"></i> Search
                         </button>
                     </div>
 
-                    {/* Nút Thêm mới */}
+                    {/* Add New Button */}
                     <button 
                         className="btn btn-success" 
                         onClick={() => setIsAddModalOpen(true)}
                     >
-                        <i className="bi bi-plus-lg"></i> Thêm Bác sĩ mới
+                        <i className="bi bi-plus-lg"></i> Add New Doctor
                     </button>
                 </div>
 
-                {/* Bảng Danh sách Bác sĩ */}
+                {/* Doctor List Table */}
                 <div className="table-responsive">
                     <table className="table table-hover align-middle">
                         <thead className="table-light">
                             <tr>
                                 <th>ID</th>
-                                <th>Họ Tên</th>
+                                <th>Full Name</th>
                                 <th>Email</th>
-                                <th>SĐT</th>
-                                <th>Chuyên khoa</th>
-                                <th>Trạng thái Duyệt</th>
-                                <th>Trạng thái TK</th>
-                                <th>Hành động</th>
+                                <th>Phone</th>
+                                <th>Specializations</th>
+                                <th>Approval Status</th>
+                                <th>Account Status</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan="8" className="text-center py-4 text-muted">Đang tải dữ liệu...</td>
+                                    <td colSpan="8" className="text-center py-4 text-muted">Loading data...</td>
                                 </tr>
                             ) : currentDoctors.length === 0 ? (
                                 <tr>
-                                    <td colSpan="8" className="text-center py-4 text-muted">Không tìm thấy Bác sĩ nào.</td>
+                                    <td colSpan="8" className="text-center py-4 text-muted">No doctors found.</td>
                                 </tr>
                             ) : (
                                 currentDoctors.map(doctor => (
@@ -695,7 +694,7 @@ const AdminDoctorManager = () => {
                                         <td>{doctor.email}</td>
                                         <td>{doctor.phone || 'N/A'}</td>
                                         <td>
-                                            {doctor.specializationIds.length > 0 ? doctor.specializationIds.length : 0} Chuyên khoa
+                                            {doctor.specializationIds.length > 0 ? doctor.specializationIds.length : 0} Specializations
                                         </td>
                                         <td>
                                             <span className={`badge ${doctor.is_active === 'APPROVED' ? 'bg-success' : doctor.is_active === 'PENDING' ? 'bg-warning text-dark' : 'bg-danger'}`}>
@@ -704,23 +703,23 @@ const AdminDoctorManager = () => {
                                         </td>
                                         <td>
                                             <span className={`badge ${doctor.user_is_active === 1 ? 'bg-success' : 'bg-secondary'}`}>
-                                                {doctor.user_is_active === 1 ? 'Đã Kích hoạt' : 'Đã Ngừng'}
+                                                {doctor.user_is_active === 1 ? 'Active' : 'Inactive'}
                                             </span>
                                         </td>
                                         <td>
-                                            {/* Nút SỬA */}
+                                            {/* EDIT Button */}
                                             <button 
                                                 className="btn btn-sm btn-info me-2 text-white"
                                                 onClick={() => handleEditDoctor(doctor)}
                                             >
-                                                <i className="bi bi-pencil-square"></i> Sửa
+                                                <i className="bi bi-pencil-square"></i> Edit
                                             </button>
-                                            {/* Nút KÍCH HOẠT/NGỪNG */}
+                                            {/* ACTIVATE/DEACTIVATE Button */}
                                             <button 
                                                 className={`btn btn-sm ${doctor.user_is_active === 1 ? 'btn-secondary' : 'btn-success'}`}
                                                 onClick={() => handleToggleActivation(doctor.user_id, doctor.user_is_active)}
                                             >
-                                                {doctor.user_is_active === 1 ? 'Ngừng' : 'Kích hoạt'}
+                                                {doctor.user_is_active === 1 ? 'Deactivate' : 'Activate'}
                                             </button>
                                         </td>
                                     </tr>
@@ -730,15 +729,15 @@ const AdminDoctorManager = () => {
                     </table>
                 </div>
 
-                {/* Phân trang */}
+                {/* Pagination */}
                 <div className="d-flex justify-content-between align-items-center mt-3">
                     <div>
-                        Hiển thị {currentDoctors.length} trên tổng số {filteredDoctors.length} kết quả.
+                        Showing {currentDoctors.length} of {filteredDoctors.length} results.
                     </div>
                     <nav>
                         <ul className="pagination mb-0">
                             <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                                <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>Trước</button>
+                                <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>Previous</button>
                             </li>
                             {[...Array(totalPages)].map((_, index) => (
                                 <li key={index} className={`page-item ${currentPage === index + 1 ? 'active' : ''}`}>
@@ -748,7 +747,7 @@ const AdminDoctorManager = () => {
                                 </li>
                             ))}
                             <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                                <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>Sau</button>
+                                <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>Next</button>
                             </li>
                         </ul>
                     </nav>
@@ -756,7 +755,7 @@ const AdminDoctorManager = () => {
 
             </div>
             
-            {/* Component Modal Thêm Bác sĩ */}
+            {/* Add Doctor Modal Component */}
             <AddDoctorForm 
                 isModalOpen={isAddModalOpen}
                 closeModal={() => setIsAddModalOpen(false)}
@@ -765,14 +764,14 @@ const AdminDoctorManager = () => {
                 refreshList={fetchDoctors}
             />
 
-            {/* Component Modal Sửa Bác sĩ Mới */}
+            {/* Edit Doctor Modal Component */}
             <EditDoctorModal
                 doctor={editingDoctor}
                 closeModal={closeEditModal}
                 cities={cities}
                 specializations={specializations}
                 refreshList={fetchDoctors}
-                updateDoctorApi={fetchApi} // Truyền hàm fetchApi vào để dùng cho update
+                updateDoctorApi={fetchApi} // Pass fetchApi for update
             />
         </div>
     );

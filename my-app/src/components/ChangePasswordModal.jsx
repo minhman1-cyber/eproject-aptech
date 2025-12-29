@@ -26,14 +26,14 @@ const ChangePasswordModal = ({ isModalOpen, closeModal, fetchApi }) => {
 
         const { currentPassword, newPassword, confirmPassword } = formData;
 
-        // Validation phía client
+        // Client-side Validation
         if (newPassword !== confirmPassword) {
-            setLocalError("Mật khẩu mới và xác nhận mật khẩu không khớp.");
+            setLocalError("New password and confirmation do not match.");
             setIsLoading(false);
             return;
         }
         if (newPassword.length < 8) {
-            setLocalError("Mật khẩu mới phải có ít nhất 8 ký tự.");
+            setLocalError("New password must be at least 8 characters long.");
             setIsLoading(false);
             return;
         }
@@ -51,11 +51,11 @@ const ChangePasswordModal = ({ isModalOpen, closeModal, fetchApi }) => {
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            setSuccessMsg(data.message || "Mật khẩu đã được thay đổi thành công!");
+            setSuccessMsg(data.message || "Password changed successfully!");
             
-            // Xóa Session và buộc đăng nhập lại
-            window.alert("Mật khẩu đã thay đổi. Vui lòng đăng nhập lại.");
-            // Giả định chuyển hướng về trang Login
+            // Clear Session and force logout
+            window.alert("Password changed. Please log in again.");
+            // Assume redirect to Login page
             window.location.href = "/login"; 
             
         } catch (err) {
@@ -70,7 +70,7 @@ const ChangePasswordModal = ({ isModalOpen, closeModal, fetchApi }) => {
             <div className="modal-dialog modal-md">
                 <div className="modal-content">
                     <div className="modal-header bg-warning text-dark">
-                        <h5 className="modal-title"><i className="bi bi-key-fill me-2"></i> Đổi Mật Khẩu</h5>
+                        <h5 className="modal-title"><i className="bi bi-key-fill me-2"></i> Change Password</h5>
                         <button type="button" className="btn-close" onClick={closeModal} disabled={isLoading}></button>
                     </div>
                     <div className="modal-body">
@@ -79,7 +79,7 @@ const ChangePasswordModal = ({ isModalOpen, closeModal, fetchApi }) => {
 
                         <form onSubmit={handlePasswordChange}>
                             <div className="mb-3">
-                                <label className="form-label">Mật khẩu cũ (*)</label>
+                                <label className="form-label">Current Password (*)</label>
                                 <input 
                                     type="password" 
                                     className="form-control" 
@@ -90,7 +90,7 @@ const ChangePasswordModal = ({ isModalOpen, closeModal, fetchApi }) => {
                                 />
                             </div>
                             <div className="mb-3">
-                                <label className="form-label">Mật khẩu mới (*)</label>
+                                <label className="form-label">New Password (*)</label>
                                 <input 
                                     type="password" 
                                     className="form-control" 
@@ -102,7 +102,7 @@ const ChangePasswordModal = ({ isModalOpen, closeModal, fetchApi }) => {
                                 />
                             </div>
                             <div className="mb-3">
-                                <label className="form-label">Xác nhận Mật khẩu mới (*)</label>
+                                <label className="form-label">Confirm New Password (*)</label>
                                 <input 
                                     type="password" 
                                     className="form-control" 
@@ -114,7 +114,7 @@ const ChangePasswordModal = ({ isModalOpen, closeModal, fetchApi }) => {
                                 />
                             </div>
                             <button type="submit" className="btn btn-warning w-100 mt-3" disabled={isLoading}>
-                                {isLoading ? 'Đang xác thực...' : 'Đổi Mật Khẩu'}
+                                {isLoading ? 'Processing...' : 'Change Password'}
                             </button>
                         </form>
                     </div>

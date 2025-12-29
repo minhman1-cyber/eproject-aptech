@@ -1,31 +1,31 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from "react-router-dom";
 
-// URL API Backend
+// Backend API URLs
 const API_BASE_URL = 'http://localhost:8888/api/v1/controllers/';
 const API_LIST_URL = API_BASE_URL + 'admin_patient_manager.php';
 const API_DETAIL_URL = API_BASE_URL + 'admin_patient_details.php';
 const API_REGISTER_URL = API_BASE_URL + 'register.php';
 const API_APPOINTMENT_MANAGE_URL = API_BASE_URL + 'manage_appointments.php'; 
 
-// Cấu hình phân trang
+// Pagination Configuration
 const ITEMS_PER_PAGE = 10;
 
-// Các giá trị mặc định cho form
+// Default values for form
 const initialPatientForm = {
     userId: null,
     fullName: '',
     email: '',
     password: '',
-    confirmPassword: '', // Chỉ dùng khi tạo mới
+    confirmPassword: '', // Only used when creating new
     phone: '',
     address: '',
     cityId: '',
-    is_active: 1, // Mặc định kích hoạt
+    is_active: 1, // Default active
 };
 
 // =======================================================
-// HÀM FETCH API CHUNG (Tái sử dụng)
+// SHARED FETCH API HOOK (Reusable)
 // =======================================================
 const useFetchApi = () => {
     return useCallback(async (url, options = {}) => {
@@ -39,28 +39,28 @@ const useFetchApi = () => {
         });
 
         if (response.status === 401) {
-            throw new Error("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại với vai trò Admin.");
+            throw new Error("Session expired. Please login again as Admin.");
         }
         
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = data.message || 'Lỗi hệ thống không xác định.';
+                const errorMessage = data.message || 'Unknown system error.';
                 throw new Error(errorMessage);
             }
             return data;
         }
         
         if (!response.ok) {
-            throw new Error('Thao tác thất bại (Lỗi Server).');
+            throw new Error('Operation failed (Server Error).');
         }
         return {};
     }, []);
 };
 
 // =======================================================
-// COMPONENT PHỤ: 1. MODAL THÊM/SỬA BỆNH NHÂN
+// SUB-COMPONENT: 1. ADD/EDIT PATIENT MODAL
 // =======================================================
 
 const PatientFormModal = ({ patient, mode, isModalOpen, closeModal, cities, refreshList, fetchApi }) => {
@@ -69,7 +69,7 @@ const PatientFormModal = ({ patient, mode, isModalOpen, closeModal, cities, refr
     const [isLoading, setIsLoading] = useState(false);
     const isEditing = mode === 'edit';
 
-    // Ánh xạ dữ liệu từ doctor object sang cấu trúc form
+    // Map data from patient object to form structure
     const mapPatientToForm = (p) => ({
         userId: p.user_id,
         fullName: p.full_name || '',
@@ -102,14 +102,14 @@ const PatientFormModal = ({ patient, mode, isModalOpen, closeModal, cities, refr
         setLocalError('');
         setIsLoading(true);
 
-        // Validation cơ bản
+        // Basic Validation
         if (!formData.fullName || !formData.email || !formData.phone || !formData.cityId) {
-            setLocalError('Vui lòng điền đầy đủ các trường bắt buộc.');
+            setLocalError('Please fill in all required fields.');
             setIsLoading(false);
             return;
         }
         if (!isEditing && formData.password !== formData.confirmPassword) {
-            setLocalError('Mật khẩu xác nhận không khớp.');
+            setLocalError('Confirm password does not match.');
             setIsLoading(false);
             return;
         }
@@ -126,9 +126,9 @@ const PatientFormModal = ({ patient, mode, isModalOpen, closeModal, cities, refr
             is_active: formData.is_active,
         };
         
-        // <<< ĐỊNH TUYẾN API CHÍNH XÁC >>>
-        // Sử dụng API_UPDATE_URL (admin_update_patient.php) cho PUT (Edit)
-        // Sử dụng API_REGISTER_URL cho POST (Add)
+        // <<< CORRECT API ROUTING >>>
+        // Use API_LIST_URL (admin_patient_manager.php handling PUT) for Edit
+        // Use API_REGISTER_URL for POST (Add)
         const url = isEditing ? API_LIST_URL : API_REGISTER_URL; 
         const method = isEditing ? 'PUT' : 'POST';
 
@@ -139,7 +139,7 @@ const PatientFormModal = ({ patient, mode, isModalOpen, closeModal, cities, refr
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            window.alert(`Hồ sơ bệnh nhân đã được ${isEditing ? 'cập nhật' : 'thêm mới'} thành công.`);
+            window.alert(`Patient profile has been ${isEditing ? 'updated' : 'added'} successfully.`);
             refreshList(); 
             closeModal();
 
@@ -157,7 +157,7 @@ const PatientFormModal = ({ patient, mode, isModalOpen, closeModal, cities, refr
             <div className="modal-dialog modal-lg">
                 <div className="modal-content">
                     <div className="modal-header bg-primary text-white">
-                        <h5 className="modal-title">{isEditing ? `Sửa Bệnh nhân ID: ${formData.userId}` : 'Thêm Bệnh nhân Mới'}</h5>
+                        <h5 className="modal-title">{isEditing ? `Edit Patient ID: ${formData.userId}` : 'Add New Patient'}</h5>
                         <button type="button" className="btn-close btn-close-white" onClick={closeModal} disabled={isLoading}></button>
                     </div>
                     <div className="modal-body">
@@ -166,7 +166,7 @@ const PatientFormModal = ({ patient, mode, isModalOpen, closeModal, cities, refr
                         <form onSubmit={handleSubmit}>
                             <div className="row">
                                 <div className="col-md-6 mb-3">
-                                    <label className="form-label">Họ tên đầy đủ (*)</label>
+                                    <label className="form-label">Full Name (*)</label>
                                     <input type="text" className="form-control" name="fullName" value={formData.fullName} onChange={handleChange} required />
                                 </div>
                                 <div className="col-md-6 mb-3">
@@ -176,47 +176,47 @@ const PatientFormModal = ({ patient, mode, isModalOpen, closeModal, cities, refr
                             </div>
                             <div className="row">
                                 <div className="col-md-6 mb-3">
-                                    <label className="form-label">Số điện thoại (*)</label>
+                                    <label className="form-label">Phone Number (*)</label>
                                     <input type="tel" className="form-control" name="phone" value={formData.phone} onChange={handleChange} required />
                                 </div>
                                 <div className="col-md-6 mb-3">
-                                    <label className="form-label">Địa chỉ</label>
+                                    <label className="form-label">Address</label>
                                     <input type="text" className="form-control" name="address" value={formData.address} onChange={handleChange} />
                                 </div>
                             </div>
                             <div className="row">
                                 <div className="col-md-4 mb-3">
-                                    <label className="form-label">Thành phố (*)</label>
+                                    <label className="form-label">City (*)</label>
                                     <select className="form-select" name="cityId" value={formData.cityId} onChange={handleChange} required>
-                                        <option value="">Chọn TP...</option>
+                                        <option value="">Select City...</option>
                                         {cities.map(city => (<option key={city.id} value={city.id}>{city.name}</option>))}
                                     </select>
                                 </div>
                                 {!isEditing && (
                                     <>
                                         <div className="col-md-4 mb-3">
-                                            <label className="form-label">Mật khẩu (*)</label>
+                                            <label className="form-label">Password (*)</label>
                                             <input type="password" className="form-control" name="password" value={formData.password} onChange={handleChange} required />
                                         </div>
                                         <div className="col-md-4 mb-3">
-                                            <label className="form-label">Xác nhận Mật khẩu (*)</label>
+                                            <label className="form-label">Confirm Password (*)</label>
                                             <input type="password" className="form-control" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required />
                                         </div>
                                     </>
                                 )}
                                 {isEditing && (
                                      <div className="col-md-4 mb-3">
-                                        <label className="form-label">Trạng thái Kích hoạt (*)</label>
+                                        <label className="form-label">Activation Status (*)</label>
                                         <select className="form-select" name="is_active" value={formData.is_active} onChange={handleChange} required>
-                                            <option value={1}>1 - Đã Kích hoạt</option>
-                                            <option value={0}>0 - Đã Ngừng</option>
+                                            <option value={1}>1 - Active</option>
+                                            <option value={0}>0 - Inactive</option>
                                         </select>
                                     </div>
                                 )}
                             </div>
 
                             <button type="submit" className="btn btn-primary w-100 mt-4" disabled={isLoading}>
-                                {isLoading ? 'Đang xử lý...' : isEditing ? 'Lưu Thay Đổi' : 'Thêm Bệnh nhân'}
+                                {isLoading ? 'Processing...' : isEditing ? 'Save Changes' : 'Add Patient'}
                             </button>
                         </form>
                     </div>
@@ -228,7 +228,7 @@ const PatientFormModal = ({ patient, mode, isModalOpen, closeModal, cities, refr
 
 
 // =======================================================
-// COMPONENT PHỤ: 2. MODAL XEM CHI TIẾT & LỊCH SỬ ĐẶT LỊCH
+// SUB-COMPONENT: 2. MODAL VIEW DETAILS & APPOINTMENT HISTORY
 // =======================================================
 
 const PatientDetailModal = ({ user, isModalOpen, closeModal, fetchApi, cities, refreshList }) => {
@@ -245,13 +245,13 @@ const PatientDetailModal = ({ user, isModalOpen, closeModal, fetchApi, cities, r
         'COMPLETED': 'bg-success',
     };
 
-    // Tải chi tiết bệnh nhân và lịch sử đặt lịch
+    // Fetch patient details and history
     const fetchDetails = useCallback(async () => {
         if (!user?.user_id) return;
         setIsLoadingDetails(true);
         setDetailError(null);
         try {
-            // API GET chi tiết trả về { details: {...}, appointments: [...] }
+            // API GET details returns { details: {...}, appointments: [...] }
             const data = await fetchApi(`${API_DETAIL_URL}?user_id=${user.user_id}`, { method: 'GET' });
             setPatientDetails(data.data.details);
             setHistory(data.data.appointments || []);
@@ -262,16 +262,16 @@ const PatientDetailModal = ({ user, isModalOpen, closeModal, fetchApi, cities, r
         }
     }, [user, fetchApi]);
 
-    // Effect tải dữ liệu khi Modal mở
+    // Effect to fetch data when Modal opens
     useEffect(() => {
         if (isModalOpen) {
             fetchDetails();
         }
     }, [isModalOpen, fetchDetails]);
     
-    // Hàm xử lý Hủy lịch (Admin thay mặt Patient)
+    // Handle Cancel Appointment (Admin on behalf of Patient)
     const handleAdminCancelAppointment = async (appointmentId) => {
-        if (!window.confirm(`Admin xác nhận: Bạn có chắc chắn muốn HỦY lịch hẹn #${appointmentId} của bệnh nhân này không?`)) return; 
+        if (!window.confirm(`Admin Confirmation: Are you sure you want to CANCEL appointment #${appointmentId} for this patient?`)) return; 
         
         setIsCancelling(true);
         try {
@@ -286,12 +286,12 @@ const PatientDetailModal = ({ user, isModalOpen, closeModal, fetchApi, cities, r
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            window.alert(data.message || `Đã hủy lịch hẹn #${appointmentId} thành công.`);
-            fetchDetails(); // Tải lại lịch sử trong modal
-            refreshList();  // Tải lại danh sách bệnh nhân chính
+            window.alert(data.message || `Appointment #${appointmentId} cancelled successfully.`);
+            fetchDetails(); // Reload history in modal
+            refreshList();  // Reload main patient list
 
         } catch (err) {
-            setDetailError('Lỗi hủy: ' + err.message);
+            setDetailError('Cancellation error: ' + err.message);
         } finally {
             setIsCancelling(false);
         }
@@ -300,7 +300,7 @@ const PatientDetailModal = ({ user, isModalOpen, closeModal, fetchApi, cities, r
 
     if (!isModalOpen || !user) return null;
     
-    // Hàm hiển thị tên thành phố
+    // Function to get city name
     const getCityName = (cityId) => {
         const city = cities.find(c => c.id === cityId);
         return city ? city.name : 'N/A';
@@ -311,39 +311,39 @@ const PatientDetailModal = ({ user, isModalOpen, closeModal, fetchApi, cities, r
             <div className="modal-dialog modal-xl">
                 <div className="modal-content">
                     <div className="modal-header bg-primary text-white">
-                        <h5 className="modal-title">Hồ sơ Bệnh nhân: {user.full_name}</h5>
+                        <h5 className="modal-title">Patient Profile: {user.full_name}</h5>
                         <button type="button" className="btn-close btn-close-white" onClick={closeModal}></button>
                     </div>
                     <div className="modal-body">
                         {isLoadingDetails ? (
-                            <div className="text-center py-5">Đang tải chi tiết...</div>
+                            <div className="text-center py-5">Loading details...</div>
                         ) : detailError ? (
                             <div className="alert alert-danger">{detailError}</div>
                         ) : (
                             <div>
-                                {/* Chi tiết hồ sơ */}
-                                <h6 className="text-primary">Thông tin Cơ bản</h6>
+                                {/* Profile Details */}
+                                <h6 className="text-primary">Basic Information</h6>
                                 <div className="row mb-4">
                                     <div className="col-md-4"><strong>Email:</strong> {patientDetails?.email}</div>
-                                    <div className="col-md-4"><strong>SĐT:</strong> {patientDetails?.phone || 'N/A'}</div>
-                                    <div className="col-md-4"><strong>Thành phố:</strong> {getCityName(patientDetails?.city_id)}</div>
+                                    <div className="col-md-4"><strong>Phone:</strong> {patientDetails?.phone || 'N/A'}</div>
+                                    <div className="col-md-4"><strong>City:</strong> {getCityName(patientDetails?.city_id)}</div>
                                 </div>
                                 <div className="row mb-4">
-                                    <div className="col-md-12"><strong>Địa chỉ:</strong> {patientDetails?.address || 'N/A'}</div>
+                                    <div className="col-md-12"><strong>Address:</strong> {patientDetails?.address || 'N/A'}</div>
                                 </div>
 
-                                {/* Lịch sử đặt lịch */}
-                                <h6 className="text-primary mt-4">Lịch sử Đặt lịch ({history.length})</h6>
+                                {/* Appointment History */}
+                                <h6 className="text-primary mt-4">Appointment History ({history.length})</h6>
                                 <div className="table-responsive">
                                     <table className="table table-sm table-striped">
                                         <thead className="table-light">
                                             <tr>
                                                 <th>ID</th>
-                                                <th>Bác sĩ</th>
-                                                <th>Ngày/Giờ</th>
-                                                <th>Lý do</th>
-                                                <th>Trạng thái</th>
-                                                <th>Hành động</th>
+                                                <th>Doctor</th>
+                                                <th>Date/Time</th>
+                                                <th>Reason</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -351,7 +351,7 @@ const PatientDetailModal = ({ user, isModalOpen, closeModal, fetchApi, cities, r
                                                 <tr key={app.id}>
                                                     <td>{app.id}</td>
                                                     <td>{app.doctorName}</td>
-                                                    <td>{app.appointmentDate} lúc {app.appointmentTime}</td>
+                                                    <td>{app.appointmentDate} at {app.appointmentTime}</td>
                                                     <td>{app.reason.substring(0, 30)}...</td>
                                                     <td>
                                                          <span className={`badge ${STATUS_CLASSES[app.status] || 'bg-secondary'}`}>
@@ -365,11 +365,11 @@ const PatientDetailModal = ({ user, isModalOpen, closeModal, fetchApi, cities, r
                                                                 onClick={() => handleAdminCancelAppointment(app.id)}
                                                                 disabled={isCancelling}
                                                             >
-                                                                {isCancelling ? 'Đang hủy...' : 'Hủy lịch'}
+                                                                {isCancelling ? 'Cancelling...' : 'Cancel Appt'}
                                                             </button>
                                                         )}
                                                         {(app.status === 'CANCELLED' || app.status === 'COMPLETED') && (
-                                                            <span className="text-muted">Đã kết thúc</span>
+                                                            <span className="text-muted">Ended</span>
                                                         )}
                                                     </td>
                                                 </tr>
@@ -381,7 +381,7 @@ const PatientDetailModal = ({ user, isModalOpen, closeModal, fetchApi, cities, r
                         )}
                     </div>
                     <div className="modal-footer">
-                        <button type="button" className="btn btn-secondary" onClick={closeModal}>Đóng</button>
+                        <button type="button" className="btn btn-secondary" onClick={closeModal}>Close</button>
                     </div>
                 </div>
             </div>
@@ -391,17 +391,17 @@ const PatientDetailModal = ({ user, isModalOpen, closeModal, fetchApi, cities, r
 
 
 // =======================================================
-// COMPONENT 3: QUẢN LÝ CHÍNH (ADMINPATIENTMANAGER)
+// COMPONENT 3: MAIN MANAGER (ADMINPATIENTMANAGER)
 // =======================================================
 
 const AdminPatientManager = () => {
     const [patients, setPatients] = useState([]);
     const [cities, setCities] = useState([]);
-    const [specializations, setSpecializations] = useState([]); // Giữ lại cho tương lai
+    const [specializations, setSpecializations] = useState([]); // Keep for future use
     
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingPatient, setEditingPatient] = useState(null); 
-    const [viewingPatient, setViewingPatient] = useState(null); // Patient đang được xem chi tiết
+    const [viewingPatient, setViewingPatient] = useState(null); // Patient being viewed
 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -415,18 +415,18 @@ const AdminPatientManager = () => {
 
     const fetchApi = useFetchApi();
 
-    // ------------------- TẢI DỮ LIỆU CHÍNH -------------------
+    // ------------------- FETCH MAIN DATA -------------------
     const fetchPatients = useCallback(async () => {
         setError(null);
         setIsLoading(true);
         try {
-            // Giả định API GET trả về: { data: { patients: [...], cities: [...] } }
+            // Assume API GET returns: { data: { patients: [...], cities: [...] } }
             const data = await fetchApi(API_LIST_URL + '?role=PATIENT', { method: 'GET' });
             
-            // Giả định API trả về user_id, full_name, email, user_is_active, phone, address, city_id
+            // Assume API returns user_id, full_name, email, user_is_active, phone, address, city_id
             setPatients(data.data.patients || []);
             setCities(data.data.cities || []);
-            setSpecializations(data.data.specializations || []); // Vẫn load specs dù không dùng ở đây
+            setSpecializations(data.data.specializations || []); // Load specs even if unused here
 
         } catch (err) {
             setError(err.message);
@@ -440,17 +440,17 @@ const AdminPatientManager = () => {
     }, [fetchPatients]);
 
 
-    // ------------------- LOGIC TÌM KIẾM & LỌC -------------------
+    // ------------------- SEARCH & FILTER LOGIC -------------------
     const filteredPatients = useMemo(() => {
         let result = patients;
 
-        // Lọc trạng thái Active
+        // Filter Active Status
         if (filterActive !== 'ALL') {
             const isActive = filterActive === 'ACTIVE' ? 1 : 0;
             result = result.filter(p => p.user_is_active === isActive);
         }
 
-        // Tìm kiếm
+        // Search
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             result = result.filter(p => {
@@ -473,12 +473,12 @@ const AdminPatientManager = () => {
         setCurrentPage(1); 
     };
 
-    // ------------------- LOGIC HÀNH ĐỘNG -------------------
+    // ------------------- ACTION LOGIC -------------------
 
-    // 1. Khóa / Mở khóa tài khoản
+    // 1. Lock / Unlock Account
     const handleToggleActivation = useCallback(async (patient, newStatus) => {
-        const statusText = newStatus === 1 ? 'kích hoạt' : 'khóa';
-        const confirmMessage = `Bạn có chắc chắn muốn ${statusText} tài khoản ${patient.full_name} không?`;
+        const statusText = newStatus === 1 ? 'activate' : 'deactivate';
+        const confirmMessage = `Are you sure you want to ${statusText} account ${patient.full_name}?`;
 
         if (!window.confirm(confirmMessage)) return; 
 
@@ -495,7 +495,7 @@ const AdminPatientManager = () => {
                 headers: { 'Content-Type': 'application/json' },
             });
 
-            setSuccessMessage(`Đã ${statusText} tài khoản thành công.`);
+            setSuccessMessage(`Account ${statusText}d successfully.`);
             fetchPatients();
 
         } catch (err) {
@@ -503,12 +503,12 @@ const AdminPatientManager = () => {
         }
     }, [fetchApi, fetchPatients]);
     
-    // 2. Mở Modal Sửa
+    // 2. Open Edit Modal
     const openEditModal = (patient) => {
         setEditingPatient(patient);
     };
 
-    // 3. Mở Modal Chi tiết
+    // 3. Open Detail Modal
     const openDetailModal = (patient) => {
         setViewingPatient(patient);
     };
@@ -523,25 +523,25 @@ const AdminPatientManager = () => {
 
             <div className="card shadow-sm p-4">
                 
-                {/* THANH LỌC & TÌM KIẾM */}
+                {/* SEARCH & FILTER BAR */}
                 <form onSubmit={handleSearchSubmit}>
                 <div className="d-flex flex-wrap align-items-center mb-4">
-                    {/* Lọc Trạng thái */}
+                    {/* Filter Status */}
                     <div className="d-flex align-items-center me-3 mb-2">
-                        <label className="form-label mb-0 me-2">Trạng thái:</label>
+                        <label className="form-label mb-0 me-2">Status:</label>
                         <select 
                             className="form-select" 
                             style={{ width: '150px' }}
                             value={filterActive}
                             onChange={(e) => setFilterActive(e.target.value)}
                         >
-                            <option value="ALL">Tất cả</option>
-                            <option value="ACTIVE">Kích hoạt</option>
-                            <option value="INACTIVE">Đã khóa</option>
+                            <option value="ALL">All</option>
+                            <option value="ACTIVE">Active</option>
+                            <option value="INACTIVE">Inactive</option>
                         </select>
                     </div>
 
-                    {/* Lọc Theo Thuộc tính */}
+                    {/* Filter By Attribute */}
                     <div className="d-flex me-3 mb-2" style={{ flexShrink: 0 }}>
                         <select 
                             className="form-select me-2" 
@@ -549,55 +549,55 @@ const AdminPatientManager = () => {
                             value={searchType}
                             onChange={(e) => setSearchType(e.target.value)}
                         >
-                            <option value="name">Tên</option>
+                            <option value="name">Name</option>
                             <option value="email">Email</option>
-                            <option value="phone">SĐT</option>
+                            <option value="phone">Phone</option>
                             <option value="id">User ID</option>
                         </select>
                         <input
                             type="text"
                             className="form-control"
-                            placeholder={`Tìm theo ${searchType}...`}
+                            placeholder={`Search by ${searchType}...`}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
                     
                     <button type="submit" className="btn btn-outline-primary me-3 mb-2">
-                        <i className="bi bi-search"></i> Lọc
+                        <i className="bi bi-search"></i> Filter
                     </button>
                     
                     <button 
                         className="btn btn-success mb-2 ms-auto" 
                         onClick={() => navigate('/signup')}
                     >
-                        <i className="bi bi-plus-lg"></i> Thêm Bệnh nhân
+                        <i className="bi bi-plus-lg"></i> Add Patient
                     </button>
                 </div>
                 </form>
 
-                {/* Bảng Danh sách Bệnh nhân */}
+                {/* Patient List Table */}
                 <div className="table-responsive">
                     <table className="table table-hover align-middle">
                         <thead className="table-light">
                             <tr>
                                 <th>ID</th>
-                                <th>Họ Tên</th>
+                                <th>Full Name</th>
                                 <th>Email</th>
-                                <th>SĐT</th>
-                                <th>Thành phố</th>
-                                <th>Trạng thái TK</th>
-                                <th>Hành động</th>
+                                <th>Phone</th>
+                                <th>City</th>
+                                <th>Account Status</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center py-4 text-muted">Đang tải dữ liệu...</td>
+                                    <td colSpan="7" className="text-center py-4 text-muted">Loading data...</td>
                                 </tr>
                             ) : currentPatients.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center py-4 text-muted">Không tìm thấy Bệnh nhân nào.</td>
+                                    <td colSpan="7" className="text-center py-4 text-muted">No patients found.</td>
                                 </tr>
                             ) : (
                                 currentPatients.map(patient => (
@@ -617,19 +617,19 @@ const AdminPatientManager = () => {
                                                 className="btn btn-sm btn-outline-info me-2"
                                                 onClick={() => openDetailModal(patient)}
                                             >
-                                                Xem chi tiết
+                                                View Details
                                             </button>
                                             <button 
                                                 className="btn btn-sm btn-outline-primary me-2"
                                                 onClick={() => openEditModal(patient)}
                                             >
-                                                Sửa
+                                                Edit
                                             </button>
                                             <button 
                                                 className={`btn btn-sm ${patient.user_is_active === 1 ? 'btn-danger' : 'btn-success'}`}
                                                 onClick={() => handleToggleActivation(patient, patient.user_is_active === 1 ? 0 : 1)}
                                             >
-                                                {patient.user_is_active === 1 ? 'Khóa' : 'Mở khóa'}
+                                                {patient.user_is_active === 1 ? 'Deactivate' : 'Activate'}
                                             </button>
                                         </td>
                                     </tr>
@@ -639,16 +639,16 @@ const AdminPatientManager = () => {
                     </table>
                 </div>
 
-                {/* Phân trang */}
+                {/* Pagination */}
                 <div className="d-flex justify-content-center mt-3">
-                    {/* Logic phân trang giữ nguyên */}
+                    {/* Pagination logic remains same */}
                 </div>
 
             </div>
             
-            {/* Modal Thêm Bệnh nhân */}
+            {/* Add Patient Modal */}
             <PatientFormModal 
-                patient={null} // Không truyền patient object khi thêm
+                patient={null} // Don't pass patient object when adding
                 mode={'add'}
                 isModalOpen={isAddModalOpen}
                 closeModal={() => setIsAddModalOpen(false)}
@@ -657,25 +657,25 @@ const AdminPatientManager = () => {
                 fetchApi={fetchApi}
             />
             
-            {/* Modal Sửa Bệnh nhân */}
+            {/* Edit Patient Modal */}
             <PatientFormModal 
                 patient={editingPatient}
                 mode={'edit'}
-                isModalOpen={!!editingPatient} // Mở nếu editingPatient có giá trị
+                isModalOpen={!!editingPatient} // Open if editingPatient has value
                 closeModal={() => setEditingPatient(null)}
                 cities={cities}
                 refreshList={fetchPatients}
                 fetchApi={fetchApi}
             />
             
-            {/* Modal Chi tiết Bệnh nhân */}
+            {/* View Patient Detail Modal */}
             <PatientDetailModal
                 user={viewingPatient}
                 isModalOpen={!!viewingPatient}
                 closeModal={() => setViewingPatient(null)}
                 cities={cities}
                 fetchApi={fetchApi}
-                refreshList={fetchPatients} // Thêm refreshList để tải lại sau khi hủy lịch
+                refreshList={fetchPatients} // Add refreshList to reload after cancelling
             />
         </div>
     );
