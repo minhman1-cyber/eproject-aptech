@@ -25,6 +25,9 @@ import DoctorDash from './pages/DoctorDash';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminDash from './pages/AdminDash';
 import PatientDashboard from './pages/PatientDashboard';
+import PatientDashboards from './pages/PatientDashboards';
+import Home from './pages/Home';
+import ContactUs from './pages/ContactUs';
 
 function App() {
   
@@ -96,7 +99,8 @@ function App() {
       <div className="App">
         <Routes>
           <Route path="/" element={<LoginForm />} />
-          <Route path="/signup" element={< SignUpForm />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/contactus" element={<ContactUs />} />
           <Route path="/signupbenhnhan" element={< SignUpForms />} />
           <Route path='/patientPF' element={< PatientProfiles />} />
           <Route path='/doctorPF' element={< DoctorProfiles />} />
@@ -114,7 +118,7 @@ function App() {
           <Route path='/aboutus' element={< AboutUs />} />
           <Route path='/doctor/dashboard' element={< DoctorDashboard />} />
           <Route path='/admin/dashboard' element={< AdminDashboard />} />
-          <Route path='/patient/dashboard' element={< PatientDashboard />} />
+          <Route path='/patient/dashboard' element={< PatientDashboards />} />
         </Routes>
       </div>
       <Footer></Footer>

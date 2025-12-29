@@ -1,4 +1,3 @@
-// LoginForm.js (Sử dụng Fetch API)
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -19,35 +18,32 @@ const LoginForm = () => {
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
-        
         // CỰC KỲ QUAN TRỌNG: Cho phép trình duyệt gửi và nhận Cookie Session
-        credentials: 'include', 
-        
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          email: email, 
-          password: password 
+        body: JSON.stringify({
+          email: email,
+          password: password
         }),
       });
 
-      // 1. Kiểm tra trạng thái HTTP (200 OK, 401 Unauthorized,...)
+      // 1. Kiểm tra trạng thái HTTP
       if (!response.ok) {
-        // Đọc response body để lấy thông báo lỗi từ PHP
         const errorData = await response.json();
         const errorMessage = errorData.message || 'Đăng nhập thất bại. Vui lòng kiểm tra thông tin.';
         throw new Error(errorMessage);
       }
 
-      // 2. Xử lý thành công (Response 200 OK)
+      // 2. Xử lý thành công
       const data = await response.json();
       const userData = data.data;
       const role = userData.role;
 
       // Session Cookie đã được thiết lập tự động trong trình duyệt
-      alert(`Đăng nhập thành công! Vai trò: ${role}`);
-      
+      // alert(`Đăng nhập thành công! Vai trò: ${role}`); // Có thể bỏ alert để trải nghiệm mượt hơn
+
       // 3. Chuyển hướng dựa trên vai trò
       if (role === 'PATIENT') {
         navigate('/patient/dashboard');
@@ -59,8 +55,9 @@ const LoginForm = () => {
         navigate('/home');
       }
 
+      localStorage.setItem('user_role', role);
+
     } catch (err) {
-      // Bắt lỗi mạng hoặc lỗi custom từ bước 1
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -68,58 +65,186 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="container d-flex align-items-center justify-content-center vh-100 bg-light">
-        <div className="card shadow-lg p-4" style={{ maxWidth: '400px', width: '100%' }}>
-            {/* ... Phần hiển thị tiêu đề và lỗi ... */}
-            <h3 className="card-title text-center text-primary mb-4 fw-bold">
-                <i className="bi bi-person-circle me-2"></i> Mediconnect Login
-            </h3>
+    <div className="login-page-wrapper d-flex align-items-center justify-content-center min-vh-100 bg-light">
+      <style>{`
+        .login-card {
+            overflow: hidden;
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            background: #fff;
+            max-width: 1000px;
+            width: 90%;
+            min-height: 600px;
+        }
+        .login-image-col {
+            background-image: url('https://images.unsplash.com/photo-1551076805-e1869033e561?auto=format&fit=crop&w=800&q=80');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+        .login-image-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.8), rgba(30, 58, 138, 0.6));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        .form-control-custom {
+            border-radius: 10px;
+            padding: 12px 15px;
+            border: 1px solid #e2e8f0;
+            background-color: #f8fafc;
+            transition: all 0.3s;
+        }
+        .form-control-custom:focus {
+            background-color: #fff;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+        .btn-login {
+            border-radius: 10px;
+            padding: 12px;
+            font-weight: 600;
+            background-color: #2563eb;
+            border: none;
+            transition: all 0.3s;
+        }
+        .btn-login:hover {
+            background-color: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        .social-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #e2e8f0;
+            color: #64748b;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .social-btn:hover {
+            background-color: #f1f5f9;
+            color: #2563eb;
+        }
+        @media (max-width: 768px) {
+            .login-image-col {
+                display: none;
+            }
+        }
+      `}</style>
+      
+      <div className="card login-card row flex-row mx-0">
+        {/* Left Column: Image & Brand Info */}
+        <div className="col-md-6 login-image-col p-0">
+            <div className="login-image-overlay">
+                <div className="mb-4">
+                    <i className="fas fa-heartbeat fa-4x mb-3"></i>
+                    <h2 className="fw-bold display-6">Mediconnect</h2>
+                </div>
+                <p className="lead px-4">
+                    "Connecting you with the best healthcare professionals. Your health is our priority."
+                </p>
+                <div className="mt-5 small opacity-75">
+                    © 2024 Mediconnect System
+                </div>
+            </div>
+        </div>
+
+        {/* Right Column: Login Form */}
+        <div className="col-md-6 bg-white p-5 d-flex flex-column justify-content-center">
+            <div className="text-center mb-4">
+                <h3 className="fw-bold text-dark mb-2">Welcome Back!</h3>
+                <p className="text-muted">Please sign in to access your account</p>
+            </div>
+
             {error && (
-                <div className="alert alert-danger" role="alert">
-                    {error}
+                <div className="alert alert-danger d-flex align-items-center" role="alert">
+                    <i className="fas fa-exclamation-circle me-2"></i>
+                    <div>{error}</div>
                 </div>
             )}
+
             <form onSubmit={handleSubmit}>
-                {/* Email và Mật khẩu Inputs giữ nguyên */}
-                <div className="form-floating mb-3">
-                    <input
-                        type="email"
-                        className="form-control"
-                        id="loginEmail"
-                        placeholder="name@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                    />
-                    <label htmlFor="loginEmail">Email</label>
+                <div className="mb-3">
+                    <label htmlFor="loginEmail" className="form-label text-secondary fw-semibold small">Email Address</label>
+                    <div className="input-group">
+                        <span className="input-group-text bg-light border-end-0 text-secondary" style={{borderTopLeftRadius: '10px', borderBottomLeftRadius: '10px', border: '1px solid #e2e8f0'}}>
+                            <i className="fas fa-envelope"></i>
+                        </span>
+                        <input
+                            type="email"
+                            className="form-control form-control-custom border-start-0 ps-0"
+                            id="loginEmail"
+                            placeholder="name@example.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                            style={{borderTopLeftRadius: 0, borderBottomLeftRadius: 0}}
+                        />
+                    </div>
                 </div>
-                <div className="form-floating mb-3">
-                    <input
-                        type="password"
-                        className="form-control"
-                        id="loginPassword"
-                        placeholder="Mật khẩu"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                    />
-                    <label htmlFor="loginPassword">Mật khẩu</label>
+
+                <div className="mb-4">
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                        <label htmlFor="loginPassword" class="form-label text-secondary fw-semibold small">Password</label>
+                        <Link to="/forgot-password" class="text-primary small text-decoration-none fw-semibold">Forgot Password?</Link>
+                    </div>
+                    <div className="input-group">
+                        <span className="input-group-text bg-light border-end-0 text-secondary" style={{borderTopLeftRadius: '10px', borderBottomLeftRadius: '10px', border: '1px solid #e2e8f0'}}>
+                            <i className="fas fa-lock"></i>
+                        </span>
+                        <input
+                            type="password"
+                            className="form-control form-control-custom border-start-0 ps-0"
+                            id="loginPassword"
+                            placeholder="Enter your password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                            style={{borderTopLeftRadius: 0, borderBottomLeftRadius: 0}}
+                        />
+                    </div>
                 </div>
-                
-                <button type="submit" className="btn btn-primary btn-lg w-100 mb-3" disabled={isLoading}>
-                    {isLoading ? 'Đang Đăng Nhập...' : 'Đăng Nhập'}
+
+                <button type="submit" className="btn btn-primary btn-lg w-100 btn-login text-white mb-4" disabled={isLoading}>
+                    {isLoading ? (
+                        <>
+                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Signing In...
+                        </>
+                    ) : (
+                        'Sign In'
+                    )}
                 </button>
             </form>
-            
-            {/* ... Phần Quên mật khẩu và Đăng ký giữ nguyên ... */}
-            <div className="text-center mt-3">
-                <Link to="/forgot-password" className="d-block mb-2">Quên Mật khẩu?</Link>
-                <p className="mt-2">
-                    Chưa có tài khoản? 
-                    <Link to="/signup" className="fw-bold ms-1">Đăng ký ngay</Link>
+
+            <div className="text-center">
+                <p className="text-muted mb-4 position-relative">
+                    <span className="bg-white px-3 position-relative z-1 small">Or continue with</span>
+                    <span className="position-absolute top-50 start-0 w-100 border-top z-0"></span>
+                </p>
+                <div className="d-flex justify-content-center gap-3 mb-4">
+                    <a href="#" className="social-btn"><i className="fab fa-google"></i></a>
+                    <a href="#" className="social-btn"><i className="fab fa-facebook-f"></i></a>
+                    <a href="#" className="social-btn"><i className="fab fa-twitter"></i></a>
+                </div>
+                <p className="mb-0">
+                    Don't have an account? 
+                    <Link to="/signup" className="fw-bold text-primary ms-1 text-decoration-none">Sign Up Now</Link>
                 </p>
             </div>
         </div>
+      </div>
     </div>
   );
 };

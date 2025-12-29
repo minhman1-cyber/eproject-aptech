@@ -483,7 +483,7 @@ const PatientDashboard = () => {
         .btn-outline-primary { color: var(--primary-color); border-color: var(--primary-color); }
         .btn-outline-primary:hover { background-color: var(--primary-color); color: #fff; }
         .nav-link { color: #555; border-radius: 8px; margin-bottom: 5px; transition: all 0.2s; }
-        .nav-link:hover { background-color: #e9ecef; color: var(--primary-color); }
+        
         .nav-link.active { background-color: var(--primary-color) !important; color: white !important; }
         .fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -525,7 +525,7 @@ const PatientDashboard = () => {
                      <button className="btn btn-light me-2 text-primary" onClick={toggleSidebar}><i className="fas fa-bars"></i></button>
                      <span className="fw-bold">HealthCare Portal</span>
                  </div>
-                 <img src={user.avatar} className="rounded-circle" width="32" height="32" />
+                 {/* <img src={user.avatar} className="rounded-circle" width="32" height="32" /> */}
              </nav>
          )}
 

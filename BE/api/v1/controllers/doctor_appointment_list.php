@@ -57,6 +57,9 @@ try {
     require_once '../models/Patient.php'; 
     require_once '../models/DoctorAvailability.php'; // Load thêm Model Availability
     
+    // --- THÊM: Load Email Service ---
+    require_once __DIR__ . '/../services/email_service.php';
+    
     $database = new Database();
     $db = $database->getConnection();
     if (!$db) { throw new Exception("Lỗi kết nối database."); }
@@ -161,8 +164,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
              throw new Exception("Bạn không có quyền thao tác trên lịch hẹn này.");
         }
         
+        // 2. Lấy thông tin bệnh nhân để gửi email
+        $patientStmt = $patientModel->getPatientDetailsById($appointmentDetails['patient_id']);
+        $patientInfo = $patientStmt->fetch(PDO::FETCH_ASSOC);
+
         $message = "";
         $newStatus = "";
+        
+        // Biến chuẩn bị cho việc gửi email
+        $shouldSendEmail = false;
+        $emailSubject = "";
+        $emailContent = "";
         
         if ($actionType === 'CANCEL') {
             $newStatus = 'CANCELLED';
@@ -191,12 +203,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
 
             $message = "Đã hủy lịch hẹn và mở lại slot khám.";
             
+            // Cấu hình Email Hủy
+            if ($patientInfo && !empty($patientInfo['email'])) {
+                $shouldSendEmail = true;
+                $emailSubject = "Thông báo hủy lịch hẹn - Mediconnect";
+                $timeShort = substr($appointmentDetails['appointment_time'], 0, 5);
+                $emailContent = "
+                    <p>Xin chào <strong>{$patientInfo['full_name']}</strong>,</p>
+                    <p>Bác sĩ đã hủy lịch hẹn khám bệnh của bạn.</p>
+                    <p><strong>Chi tiết:</strong></p>
+                    <ul>
+                        <li>Ngày: {$appointmentDetails['appointment_date']}</li>
+                        <li>Giờ: {$timeShort}</li>
+                    </ul>
+                    <p>Vui lòng truy cập hệ thống để đặt lại lịch khác nếu bạn vẫn có nhu cầu khám.</p>
+                    <p>Xin lỗi vì sự bất tiện này.</p>
+                ";
+            }
+            
         } elseif ($actionType === 'COMPLETE') {
             $newStatus = 'COMPLETED';
             if ($appointmentDetails['status'] !== 'BOOKED' && $appointmentDetails['status'] !== 'RESCHEDULED') {
                  throw new Exception("Lịch hẹn chỉ có thể hoàn thành từ trạng thái Đã đặt hoặc Đã đổi lịch.");
             }
             $message = "Đã đánh dấu lịch hẹn hoàn thành thành công.";
+            
+            // Cấu hình Email Hoàn thành
+            if ($patientInfo && !empty($patientInfo['email'])) {
+                $shouldSendEmail = true;
+                $emailSubject = "Cảm ơn đã sử dụng dịch vụ - Mediconnect";
+                $timeShort = substr($appointmentDetails['appointment_time'], 0, 5);
+                $emailContent = "
+                    <p>Xin chào <strong>{$patientInfo['full_name']}</strong>,</p>
+                    <p>Lịch khám của bạn vào lúc <strong>{$timeShort}</strong> ngày <strong>{$appointmentDetails['appointment_date']}</strong> đã hoàn tất.</p>
+                    <p>Cảm ơn bạn đã tin tưởng đội ngũ bác sĩ của Mediconnect.</p>
+                    <p>Chúc bạn luôn mạnh khỏe!</p>
+                ";
+            }
             
         } else {
             http_response_code(400);
@@ -209,9 +252,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         }
 
         $db->commit();
+        
+        // --- GỬI EMAIL (Thực hiện sau khi commit DB thành công) ---
+        if ($shouldSendEmail) {
+            try {
+                sendEmail(
+                    $patientInfo['email'], 
+                    $patientInfo['full_name'], 
+                    $emailSubject, 
+                    $emailContent
+                );
+            } catch (Exception $e) {
+                // Chỉ log lỗi email, không làm fail request chính
+                error_log("Lỗi gửi email cho bệnh nhân (ID: {$patientInfo['id']}): " . $e->getMessage());
+            }
+        }
 
         http_response_code(200);
-        echo json_encode(["message" => $message]);
+        echo json_encode([
+            "message" => $message,
+            "email_sent" => $shouldSendEmail // Flag debug để biết có cố gửi email không
+        ]);
         exit();
 
     } catch (Exception $e) {
