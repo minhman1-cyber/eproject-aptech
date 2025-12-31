@@ -28,6 +28,7 @@ import PatientDashboard from './pages/PatientDashboard';
 import PatientDashboards from './pages/PatientDashboards';
 import Home from './pages/Home';
 import ContactUs from './pages/ContactUs';
+import ForgotPassword from './components/ForgotPassword';
 
 function App() {
   
@@ -100,6 +101,8 @@ function App() {
         <Routes>
           <Route path="/" element={<LoginForm />} />
           <Route path="/home" element={<Home />} />
+          <Route path="/lib" element={<ArticleListViewer />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/contactus" element={<ContactUs />} />
           <Route path="/signupbenhnhan" element={< SignUpForms />} />
           <Route path='/patientPF' element={< PatientProfiles />} />

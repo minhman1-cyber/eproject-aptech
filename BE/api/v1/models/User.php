@@ -118,4 +118,83 @@ class User {
 
         return $stmt->execute();
     }
+
+    // --- CÁC HÀM MỚI PHỤC VỤ QUÊN MẬT KHẨU ---
+
+    // 1. Lưu OTP vào database
+    public function saveOtp($otp) {
+        // Xóa OTP cũ của email này nếu có (tránh rác)
+        $query_del = "DELETE FROM password_resets WHERE email = :email";
+        $stmt_del = $this->conn->prepare($query_del);
+        $stmt_del->bindParam(':email', $this->email);
+        $stmt_del->execute();
+
+        // Tạo thời gian hết hạn (ví dụ: 10 phút)
+        $expiry = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+
+        $query = "INSERT INTO password_resets (email, otp, expiry) VALUES (:email, :otp, :expiry)";
+        $stmt = $this->conn->prepare($query);
+
+        $this->email = htmlspecialchars(strip_tags($this->email));
+        $otp = htmlspecialchars(strip_tags($otp));
+
+        $stmt->bindParam(':email', $this->email);
+        $stmt->bindParam(':otp', $otp);
+        $stmt->bindParam(':expiry', $expiry);
+
+        return $stmt->execute();
+    }
+
+   // 2. Kiểm tra OTP có hợp lệ không (ĐÃ SỬA LỖI MÚI GIỜ)
+    public function verifyOtp($otp) {
+        // Lấy thời gian hiện tại từ PHP (để khớp với lúc tạo expiry)
+        $now = date('Y-m-d H:i:s');
+
+        // Sửa query: Thay NOW() bằng tham số :now
+        $query = "SELECT * FROM password_resets 
+                  WHERE email = :email 
+                  AND otp = :otp 
+                  AND expiry > :now 
+                  LIMIT 0,1";
+        
+        $stmt = $this->conn->prepare($query);
+        
+        // Clean dữ liệu
+        $cleanOtp = htmlspecialchars(strip_tags($otp));
+        
+        $stmt->bindParam(':email', $this->email);
+        $stmt->bindParam(':otp', $cleanOtp);
+        $stmt->bindParam(':now', $now); // Bind thời gian PHP vào
+        
+        $stmt->execute();
+
+        if($stmt->rowCount() > 0){
+            return true;
+        }
+        return false;
+    }
+
+    // 3. Xóa OTP sau khi sử dụng xong
+    public function deleteOtp() {
+        $query = "DELETE FROM password_resets WHERE email = :email";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':email', $this->email);
+        return $stmt->execute();
+    }
+
+    // 4. Đổi mật khẩu dựa trên Email (Dùng cho quên mật khẩu)
+    public function updatePasswordByEmail($newPassword) {
+        $query = "UPDATE " . $this->table . " 
+                  SET password = :password_hash, updated_at = NOW() 
+                  WHERE email = :email";
+        
+        $stmt = $this->conn->prepare($query);
+        
+        $password_hash = password_hash($newPassword, PASSWORD_BCRYPT);
+        
+        $stmt->bindParam(":password_hash", $password_hash);
+        $stmt->bindParam(":email", $this->email);
+
+        return $stmt->execute();
+    }
 }

@@ -460,7 +460,7 @@ const AdminArticleManager = ({ isWidget = false }) => {
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                        <button type="submit" className="btn btn-outline-primary ms-2"><i className="bi bi-search"></i></button>
+                        <button type="submit" className="btn btn-outline-primary ms-2"><i class="fas fa-search"></i></button>
                     </form>
                     
                     <button className="btn btn-success" onClick={() => setIsAddModalOpen(true)} disabled={isLoading}>

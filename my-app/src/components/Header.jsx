@@ -87,7 +87,7 @@ function Header() {
     // Định nghĩa danh sách menu và đường dẫn tương ứng
     const menuItems = [
         { name: 'Home', path: '/home' },
-        { name: 'Blog', path: '/blog' },
+        { name: 'Library', path: '/lib' },
         { name: 'Pages', path: '/pages' },
         { name: 'Departments', path: '/departments' },
         { name: 'Timetable', path: '/timetable' },

@@ -74,10 +74,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         
         // Danh sách categories cố định (hoặc lấy từ DB nếu có bảng riêng)
         $categories = [
-            ['value' => 'NEWS', 'label' => 'Tin tức Y tế'],
-            ['value' => 'DISEASE', 'label' => 'Bệnh lý'],
-            ['value' => 'PREVENTION', 'label' => 'Phòng bệnh'],
-            ['value' => 'CURE', 'label' => 'Điều trị'],
+            ['value' => 'NEWS', 'label' => 'Medical News'],
+            ['value' => 'DISEASE', 'label' => 'Disease'],
+            ['value' => 'PREVENTION', 'label' => 'Prevention'],
+            ['value' => 'CURE', 'label' => 'Cure'],
         ];
 
         http_response_code(200);

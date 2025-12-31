@@ -227,7 +227,7 @@ const ArticleListViewer = () => {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                             <button type="submit" className="btn btn-primary px-4">
-                                <i className="bi bi-search"></i>
+                                <i class="fas fa-search"></i>
                             </button>
                         </div>
                     </form>
